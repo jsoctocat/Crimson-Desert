@@ -1,0 +1,147 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="MinHook\buffer.c">
+      <Filter>Headers\MinHook</Filter>
+    </ClCompile>
+    <ClCompile Include="MinHook\hde32.c">
+      <Filter>Headers\MinHook</Filter>
+    </ClCompile>
+    <ClCompile Include="MinHook\hde64.c">
+      <Filter>Headers\MinHook</Filter>
+    </ClCompile>
+    <ClCompile Include="MinHook\hook.c">
+      <Filter>Headers\MinHook</Filter>
+    </ClCompile>
+    <ClCompile Include="MinHook\trampoline.c">
+      <Filter>Headers\MinHook</Filter>
+    </ClCompile>
+    <ClCompile Include="dllmain.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui.cpp">
+      <Filter>Sources\Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui_demo.cpp">
+      <Filter>Sources\Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui_draw.cpp">
+      <Filter>Sources\Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui_impl_dx11.cpp">
+      <Filter>Sources\Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="Threading.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="Utilities\Vectors.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="MinHook\buffer.h">
+      <Filter>Headers\MinHook</Filter>
+    </ClInclude>
+    <ClInclude Include="MinHook\hde32.h">
+      <Filter>Headers\MinHook</Filter>
+    </ClInclude>
+    <ClInclude Include="MinHook\hde64.h">
+      <Filter>Headers\MinHook</Filter>
+    </ClInclude>
+    <ClInclude Include="MinHook\table64.h">
+      <Filter>Headers\MinHook</Filter>
+    </ClInclude>
+    <ClInclude Include="MinHook\table32.h">
+      <Filter>Headers\MinHook</Filter>
+    </ClInclude>
+    <ClInclude Include="MinHook\pstdint.h">
+      <Filter>Headers\MinHook</Filter>
+    </ClInclude>
+    <ClInclude Include="MinHook\trampoline.h">
+      <Filter>Headers\MinHook</Filter>
+    </ClInclude>
+    <ClInclude Include="menu.cpp">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="Foundation\Addresses.h">
+      <Filter>Headers\Foundation</Filter>
+    </ClInclude>
+    <ClInclude Include="Foundation\FunctionCalls.h">
+      <Filter>Headers\Foundation</Filter>
+    </ClInclude>
+    <ClInclude Include="Foundation\GlobalVariables.h">
+      <Filter>Headers\Foundation</Filter>
+    </ClInclude>
+    <ClInclude Include="Foundation\Headers.h">
+      <Filter>Headers\Foundation</Filter>
+    </ClInclude>
+    <ClInclude Include="Foundation\Offsets.h">
+      <Filter>Headers\Foundation</Filter>
+    </ClInclude>
+    <ClInclude Include="MinHook\MinHook.h">
+      <Filter>Headers\MinHook</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\imconfig.h">
+      <Filter>Headers\Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\imgui.h">
+      <Filter>Headers\Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\imgui_impl_dx11.h">
+      <Filter>Headers\Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\imgui_internal.h">
+      <Filter>Headers\Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\stb_rect_pack.h">
+      <Filter>Headers\Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\stb_textedit.h">
+      <Filter>Headers\Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\stb_truetype.h">
+      <Filter>Headers\Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="Utilities\Dump_Functions.h">
+      <Filter>Headers\Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="Utilities\extra functions.h">
+      <Filter>Headers\Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="Utilities\Logs.h">
+      <Filter>Headers\Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="Utilities\Lua.h">
+      <Filter>Headers\Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="Utilities\Vectors.h">
+      <Filter>Headers\Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="Utilities\XorString.h">
+      <Filter>Headers\Utilities</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Sources">
+      <UniqueIdentifier>{6deb1a24-e4d3-47af-9851-875dd3f72e61}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers">
+      <UniqueIdentifier>{f78400a5-5b21-4c4a-82c3-09ce3a003108}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Sources\Imgui">
+      <UniqueIdentifier>{b2580799-9c57-42cb-8aa8-b92396de48e8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers\Foundation">
+      <UniqueIdentifier>{dde97a37-1f90-4ebd-a2b2-21985ca087bf}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers\Imgui">
+      <UniqueIdentifier>{b1bffd1f-27da-406c-858d-01fc774bd081}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers\Utilities">
+      <UniqueIdentifier>{afc3a0e5-0625-4cbe-bcea-dee334848c14}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers\MinHook">
+      <UniqueIdentifier>{a0e2099c-5b17-413b-b5a6-9658f5b9fb73}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

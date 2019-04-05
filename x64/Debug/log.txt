@@ -1,0 +1,27 @@
+gathering less than 190
+NPC less than 240
+
+max price = average*.1 + average
+min price = -(average*.1)+average
+
+Warehouse_OpenPanelFromDialog()
+Warehouse_OpenPanelFromMaid()
+FGlobal_ItemMarket_OpenByMaid()
+observerCameraModeStart()
+ToClient_JoinPvpBattleGround() //battle arena
+ToClient_UnJoinPvpBattleGround()
+ToClient_JoinLocalWar() //rbf
+ToClient_UnJoinLocalWar()
+ToClient_SavageDefenceJoin()
+ToClient_SavageDefenceUnJoin()
+ToClient_joinPersonalBattle() //team battle
+PaGlobal_PersonalBattle:join(2)
+ServantInventory_OpenAll() //mount inventory
+ManufactureShowAni()
+InventoryShowAni()
+getSelfPlayer():setActionChart('WAIT')
+MOVE_ACCELERATE
+MOVE_FORWARD
+
+lua setactionchart -> teleport because no actions are registered (lag and useless)
+without it ghost step show trails but also teleport
