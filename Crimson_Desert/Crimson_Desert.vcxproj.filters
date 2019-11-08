@@ -1,21 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="MinHook\buffer.c">
-      <Filter>Headers\MinHook</Filter>
-    </ClCompile>
-    <ClCompile Include="MinHook\hde32.c">
-      <Filter>Headers\MinHook</Filter>
-    </ClCompile>
-    <ClCompile Include="MinHook\hde64.c">
-      <Filter>Headers\MinHook</Filter>
-    </ClCompile>
-    <ClCompile Include="MinHook\hook.c">
-      <Filter>Headers\MinHook</Filter>
-    </ClCompile>
-    <ClCompile Include="MinHook\trampoline.c">
-      <Filter>Headers\MinHook</Filter>
-    </ClCompile>
     <ClCompile Include="dllmain.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
@@ -31,35 +16,44 @@
     <ClCompile Include="ImGui\imgui_impl_dx11.cpp">
       <Filter>Sources\Imgui</Filter>
     </ClCompile>
-    <ClCompile Include="Threading.cpp">
-      <Filter>Sources</Filter>
+    <ClCompile Include="MinHook\buffer.c">
+      <Filter>Headers\MinHook</Filter>
+    </ClCompile>
+    <ClCompile Include="MinHook\hook.c">
+      <Filter>Headers\MinHook</Filter>
+    </ClCompile>
+    <ClCompile Include="MinHook\trampoline.c">
+      <Filter>Headers\MinHook</Filter>
+    </ClCompile>
+    <ClCompile Include="MinHook\hde\hde32.c">
+      <Filter>Headers\MinHook\hde</Filter>
+    </ClCompile>
+    <ClCompile Include="MinHook\hde\hde64.c">
+      <Filter>Headers\MinHook\hde</Filter>
     </ClCompile>
     <ClCompile Include="Utilities\Vectors.cpp">
-      <Filter>Sources</Filter>
+      <Filter>Sources\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="ESP\ESP.cpp">
+      <Filter>Sources\ESP</Filter>
+    </ClCompile>
+    <ClCompile Include="Graphics\DirectXGI.cpp">
+      <Filter>Sources\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Graphics\DX11Renderer.cpp">
+      <Filter>Sources\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Input\InputContext.cpp">
+      <Filter>Sources\Input</Filter>
+    </ClCompile>
+    <ClCompile Include="LocalPlayer\LocalPlayerContext.cpp">
+      <Filter>Sources\LocalPlayer</Filter>
+    </ClCompile>
+    <ClCompile Include="Threading\Thread.cpp">
+      <Filter>Sources\Threading</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="MinHook\buffer.h">
-      <Filter>Headers\MinHook</Filter>
-    </ClInclude>
-    <ClInclude Include="MinHook\hde32.h">
-      <Filter>Headers\MinHook</Filter>
-    </ClInclude>
-    <ClInclude Include="MinHook\hde64.h">
-      <Filter>Headers\MinHook</Filter>
-    </ClInclude>
-    <ClInclude Include="MinHook\table64.h">
-      <Filter>Headers\MinHook</Filter>
-    </ClInclude>
-    <ClInclude Include="MinHook\table32.h">
-      <Filter>Headers\MinHook</Filter>
-    </ClInclude>
-    <ClInclude Include="MinHook\pstdint.h">
-      <Filter>Headers\MinHook</Filter>
-    </ClInclude>
-    <ClInclude Include="MinHook\trampoline.h">
-      <Filter>Headers\MinHook</Filter>
-    </ClInclude>
     <ClInclude Include="menu.cpp">
       <Filter>Sources</Filter>
     </ClInclude>
@@ -72,14 +66,8 @@
     <ClInclude Include="Foundation\GlobalVariables.h">
       <Filter>Headers\Foundation</Filter>
     </ClInclude>
-    <ClInclude Include="Foundation\Headers.h">
-      <Filter>Headers\Foundation</Filter>
-    </ClInclude>
     <ClInclude Include="Foundation\Offsets.h">
       <Filter>Headers\Foundation</Filter>
-    </ClInclude>
-    <ClInclude Include="MinHook\MinHook.h">
-      <Filter>Headers\MinHook</Filter>
     </ClInclude>
     <ClInclude Include="ImGui\imconfig.h">
       <Filter>Headers\Imgui</Filter>
@@ -105,9 +93,6 @@
     <ClInclude Include="Utilities\Dump_Functions.h">
       <Filter>Headers\Utilities</Filter>
     </ClInclude>
-    <ClInclude Include="Utilities\extra functions.h">
-      <Filter>Headers\Utilities</Filter>
-    </ClInclude>
     <ClInclude Include="Utilities\Logs.h">
       <Filter>Headers\Utilities</Filter>
     </ClInclude>
@@ -118,6 +103,60 @@
       <Filter>Headers\Utilities</Filter>
     </ClInclude>
     <ClInclude Include="Utilities\XorString.h">
+      <Filter>Headers\Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="MinHook\buffer.h">
+      <Filter>Headers\MinHook</Filter>
+    </ClInclude>
+    <ClInclude Include="MinHook\MinHook.h">
+      <Filter>Headers\MinHook</Filter>
+    </ClInclude>
+    <ClInclude Include="MinHook\trampoline.h">
+      <Filter>Headers\MinHook</Filter>
+    </ClInclude>
+    <ClInclude Include="MinHook\hde\hde32.h">
+      <Filter>Headers\MinHook\hde</Filter>
+    </ClInclude>
+    <ClInclude Include="MinHook\hde\hde64.h">
+      <Filter>Headers\MinHook\hde</Filter>
+    </ClInclude>
+    <ClInclude Include="MinHook\hde\pstdint.h">
+      <Filter>Headers\MinHook\hde</Filter>
+    </ClInclude>
+    <ClInclude Include="MinHook\hde\table32.h">
+      <Filter>Headers\MinHook\hde</Filter>
+    </ClInclude>
+    <ClInclude Include="MinHook\hde\table64.h">
+      <Filter>Headers\MinHook\hde</Filter>
+    </ClInclude>
+    <ClInclude Include="MinHook\include\MinHook.h">
+      <Filter>Headers\MinHook\include</Filter>
+    </ClInclude>
+    <ClInclude Include="Unhook.h">
+      <Filter>Headers\Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\DirectXGI.h">
+      <Filter>Headers\Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\DX11Renderer.h">
+      <Filter>Headers\Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="ESP\ESP.h">
+      <Filter>Headers\ESP</Filter>
+    </ClInclude>
+    <ClInclude Include="LocalPlayer\LocalPlayerContext.h">
+      <Filter>Headers\LocalPlayer</Filter>
+    </ClInclude>
+    <ClInclude Include="Threading\Thread.h">
+      <Filter>Headers\Threading</Filter>
+    </ClInclude>
+    <ClInclude Include="Timer\Timer.h">
+      <Filter>Headers\Timer</Filter>
+    </ClInclude>
+    <ClInclude Include="Input\InputContext.h">
+      <Filter>Headers\Input</Filter>
+    </ClInclude>
+    <ClInclude Include="Utilities\String.h">
       <Filter>Headers\Utilities</Filter>
     </ClInclude>
   </ItemGroup>
@@ -142,6 +181,48 @@
     </Filter>
     <Filter Include="Headers\MinHook">
       <UniqueIdentifier>{a0e2099c-5b17-413b-b5a6-9658f5b9fb73}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers\MinHook\hde">
+      <UniqueIdentifier>{6277d780-3604-46eb-8790-6d52fdea87ae}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers\MinHook\include">
+      <UniqueIdentifier>{2bdb9da5-d380-4649-9f6d-f1150cc57c2c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers\ESP">
+      <UniqueIdentifier>{ee5fcc59-032a-49dd-8fea-d532bfbae9d0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers\Graphics">
+      <UniqueIdentifier>{57bea4ef-ad9e-4471-9f86-6497b8b24967}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers\Input">
+      <UniqueIdentifier>{409e393e-766a-4218-8833-612a719a064d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers\LocalPlayer">
+      <UniqueIdentifier>{d6f291f6-1fc6-4c62-a8b3-b5b034736021}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers\Threading">
+      <UniqueIdentifier>{ea803e07-3885-4290-b17f-55be27bf374b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers\Timer">
+      <UniqueIdentifier>{d286c43c-c9b5-4060-8f31-ae602746d4fa}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Sources\Utilities">
+      <UniqueIdentifier>{d33f2158-f7ef-4ec9-ba2d-75e65fcce142}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Sources\Threading">
+      <UniqueIdentifier>{e82cace8-19ea-49d6-a586-eec452d807c1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Sources\LocalPlayer">
+      <UniqueIdentifier>{0cab757a-b872-4d38-8aa3-3351010c33e7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Sources\Input">
+      <UniqueIdentifier>{b65e23d5-44a2-42b3-97c5-b25c8fd68118}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Sources\Graphics">
+      <UniqueIdentifier>{45238890-1f2f-41dd-8f0c-1c9da77945e9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Sources\ESP">
+      <UniqueIdentifier>{2dfab2e9-65ae-4bad-9eaa-005578776b78}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

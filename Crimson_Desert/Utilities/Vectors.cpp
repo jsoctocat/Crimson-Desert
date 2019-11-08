@@ -8,7 +8,7 @@ Vector2::Vector2()
 	y = 0;
 }
 
-Vector2::Vector2(int position_x, int position_y)
+Vector2::Vector2(float position_x, float position_y)
 {
 	x = position_x;
 	y = position_y;
@@ -16,10 +16,10 @@ Vector2::Vector2(int position_x, int position_y)
 
 float Vector2::Get2DDistance(Vector2 target)
 {
-	int xD = x - target.x;
-	int yD = y - target.y;
+	float xD = x - target.x;
+	float yD = y - target.y;
 
-	return (float)sqrt(xD * xD + yD * yD);
+	return sqrt(xD * xD + yD * yD);
 }
 
 bool Vector2::Equals(Vector2 target)

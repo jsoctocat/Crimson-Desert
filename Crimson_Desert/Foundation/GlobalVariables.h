@@ -1,154 +1,132 @@
 #pragma once
-#include <cstdint>
-#include <string>
 
-//global variables
 namespace BDO
 {
 	//checks if ingame or switching
-	bool g_b_game_loaded_first_time = false;
-	//static bool g_b_lua_table_created_once = false;
-	bool g_b_is_ready_to_play = false;
-	uintptr_t* g_p_in_game = (uintptr_t*)g_kuip_LocalPlayer;
-	uintptr_t* g_p_warehouse_exist = ((uintptr_t*)g_kuip_CurrentWarehouse);
-	uintptr_t* g_p_vehicle_exist = (uintptr_t*)g_kuip_CurrentVehicle;
+	bool g_bGameLoadedFirstTime = false;
+	bool g_bIsReadyToPlay = false;
+	uintptr_t* g_pLocalPlayer = (uintptr_t*)g_kuip_LocalPlayer;
+	uintptr_t* g_pWarehouse = (uintptr_t*)g_kuip_CurrentWarehouse;
+	uintptr_t* g_pLocalVehicle = (uintptr_t*)g_kuip_CurrentVehicle;
 
 	//unhook
 	char g_c_dlldir[MAX_PATH]; //get dll dir
-	HMODULE g_hmodule_dllModule; //get module name for unhook
-	bool g_b_caplock_state; //shift key
 
 	//console log
-	bool g_b_show_console = false;
+	bool g_bShowConsole = false;
 
 	//timer
-	uint64_t g_ui64_last_tick = 0;
-	int g_i32_esp_draw_interval = 15;
+	uint64_t g_ui64LastTick = 0;
 
 	//uitilities
-	bool g_b_reloadedUI_check = false;
-	bool g_b_reloadedUI = false;
-	bool g_b_worker_auto_restore = false;
-	bool g_b_remove_desert_debuff = false;
-	bool g_b_debug = false;
-
-	//character modification
-	bool g_b_character_activation = false;
-	float g_f_character_animation_speed = 1.0f; //animation speed
-	bool g_b_player_detection_overwrite = false;
-	bool g_b_no_cooldown = false;
-	float g_f_jump_height = 0.0f;
-	int g_i32_movement_type = 1; //default movement type: Travel
-	char *g_cp_which_movement_type[] = { "Travel", "Grind", "Normal" };
-	int g_i32_lifeskill_buff = 1; //default lifeskill buff: level 7
-	char *g_cp_which_lifeskill_buff[] = { "LEVEL 5", "LEVEL 7" };
-
-	//vehicle
-	bool g_b_vehicle_activation = false;
-	int g_i32_vehicle_accel_slider = 149;
-	int g_i32_vehicle_speed_slider = 159;
-	int g_i32_vehicle_turn_slider = 145;
-	int g_i32_vehicle_brake_slider = 145;
-
-	//manufacture
-	bool g_b_auto_manufacture = false;
-	int g_i32_warehouse_timer_interval = 1000;
-	uint64_t g_ui64_warehouse_last_tick = 1000;
-	bool g_b_storage_check = false;
-	bool g_b_wait_check = false;
-	bool g_b_is_manufacturing = false;
-
-	//esp
-	int g_i32_esp_target = 0;
-	char* g_cp_which_ESP_target[] = { "Player", "Monster", "NPC", "Vehicle", "Gate", "Alterego", "Collect", "Household", "Installation", "Deadbody", "Custom" };
-	bool g_b_show_esp = false;
-	bool g_b_show_esp_line = false;
-	bool g_b_show_esp_circle = false;
-	bool g_b_show_esp_name = false;
-	bool g_b_show_esp_id = false;
-	bool g_b_show_esp_level = false;
-	bool g_b_show_esp_distance = false;
-	bool g_b_show_world_map = false;
-
-	//market-buy
-	bool g_b_auto_buy = false;
-	bool g_b_show_market_log = false;
-	int g_i32_execution_interval = 250;
-	uint64_t g_ui64_warehouse_silver_for_market = 0;
-	int g_i32_territory_key = 1; //default territory key: Heidel
-	char* g_cp_which_town[] = { "Velia", "Heidel", "Calpheon", "Mediah", "Valencia", "Kamasylvia" };
-	int g_i32_wallet_type = 1;	// 0: Inventory | 2: Warehouse  | 4: Maid
-	char* g_cp_which_wallet[] = { "Inventory", "Warehouse" }; //, "Maid" 
-
-	//market-sell
-	bool g_b_auto_sell = false;
-	int g_i32_sell_type = 2; //default sell type: recent price
-	char* g_cp_sell_type[] = { "Minimum", "Maximum", "Recent", "Custom" };
-	int g_i32_market_sell_item_id = 40228; //default sell item: ancient scrolls (40218 = relics)
-	int g_i32_custom_price = 0;
-
-	//auto fish
-	int g_i32_predictGrade = 3; //default fish grade: yellow fish
-	char* g_cp_which_fish_Grade[] = { "White", "Green", "Blue", "Yellow" };
-	bool g_b_auto_fishing = false;
-	bool g_b_relics_only = false;
-	float g_f_fishingPosX = 0;
-	bool g_b_clear_position = false;
-	bool g_b_automate_fishing = false;
-
-	//auto grind
-	bool g_b_navigation_record = false;
-	bool g_b_navigation_record_check = false;
-	int g_i32_navigation_delay = 200;
-	bool g_b_navigation_show_waypoints = false;
-	int g_i32_navigation_lastpoint = 0;
-	int g_i32_grinder_type = 1; //default grinder type: teleport
-	char* g_cp_which_grinder_type[] = { "Normal", "Teleport" };
-	bool g_b_navigation_activate = false;
-	bool g_b_navigation_pause = false;
-	bool g_b_navigation_reload_check = false;
-	bool g_b_navigation_player_detection = false;
-	bool g_b_character_animation_lock = false;
-	bool g_b_navigation_pet_loot = false;
-	bool g_b_navigation_looting = false;
-	float g_f_loot_range = 500.0f;
-	float g_f_monster_range = 348.0f;
-	bool g_b_navigation_monsters_detection = false;
-
-	//screenshot
-	bool g_b_cam_activation = false;
-	bool g_b_cam_advanced = false;
-	float g_f_cam_view1 = 0;
-	float g_f_cam_view2 = 0;
-	float g_f_cam_view3 = 0;
-	float g_f_cam_view4 = 0;
-	float g_f_cam_screenshot1 = 0;
-	float g_f_cam_screenshot2 = 0;
-	float g_f_cam_screenshot3 = 0;
-	float g_f_cam_screenshot4 = 0;
-	float g_f_cam_screenshot5 = 0;
-
-	//patch pet system
-	BYTE g_bt_pet_system_nop[4] = { 0x90, 0x90, 0x90, 0x90 };
-	BYTE* g_btp_pet_system_bypass = reinterpret_cast<BYTE*>(g_kuip_PatchPetSystem);
+	bool g_bReloadedUI = false;
+	bool g_bDebug = false;
 
 	//no cooldown
-	BYTE g_bt_cooldown_normal[2] = { 0x39,0xBA };
-	BYTE g_bt_cooldown_reduced[2] = { 0x39,0x92 };
-	BYTE* g_btp_no_cooldown = reinterpret_cast<BYTE*>(g_kuip_NoCooldown);
+	unsigned char g_ucCooldown_Normal[2] = { 0x39, 0xBB };
+	unsigned char g_ucCooldown_Reduced[2] = { 0x39, 0x93 };
+	unsigned char* g_ucpNoCooldown = reinterpret_cast<unsigned char*>(g_kuip_NoCooldown);
 
 	//bypass obstacle
-	BYTE g_bt_obstacle_normal[2] = { 0x0F,0x29 };
-	BYTE g_bt_obstacle_wall[2] = { 0x0F,0x28 };
-	BYTE g_bt_obstacle_ground[2] = { 0x90,0x29 };
-	BYTE* g_btp_bypass_obstacle = reinterpret_cast<BYTE*>(g_kuip_PassThroughObstacle);
+	unsigned char g_ucCollision_Normal[2] = { 0x0F, 0x29 };
+	unsigned char g_ucCollision_Wall[2] = { 0x0F, 0x28 };
+	unsigned char g_ucCollision_Ground[2] = { 0x90, 0x29 };
+	unsigned char* g_ucpIgnoreCollision = reinterpret_cast<unsigned char*>(g_kuip_PassThroughObstacle);
 
 	//patch speed
-	BYTE g_bt_speed_normal[7] = { 0x66,0x0F,0x6E,0x84,0x82,0x18,0x0C }; //0xC00 <- 0x00 0x0C
-	BYTE g_bt_speed_grind[7] = { 0x66,0x0F,0x6E,0x84,0x82,0x1B,0x0C }; //0xC02 <- 0x02 0x0C
-	BYTE g_bt_speed_travel[7] = { 0x66,0x0F,0x6E,0x84,0x82,0x17,0x0C }; //0xBFF <- 0xFF 0x0B
-	//0xC2C, insane attack speed, doesn't effect movement speed
-	BYTE* g_btp_patch_speed = reinterpret_cast<BYTE*>(g_kuip_SpeedNullifier);
+	unsigned char g_ucSpeed_Normal[7] = { 0x66, 0x0F, 0x6E, 0x84, 0x82, 0x58, 0x0B }; //0xC00 <- 0x00 0x0C
+	unsigned char g_ucSpeed_Fast[7] = { 0x66, 0x0F, 0x6E, 0x84, 0x82, 0x57, 0x0B }; //0xC02 <- 0x02 0x0C
+	unsigned char* g_ucpPatchSpeed = reinterpret_cast<unsigned char*>(g_kuip_SpeedNullifier);
+
+	namespace Character
+	{
+		bool activation = false;
+		float animationSpeed = 1.0f; //animation speed
+		bool playerDetectorOverwrite = false;
+		bool noCooldown = false;
+		float jumpHeight = 0.0f;
+		int movementType = 1; //default movement type: Fast
+		char* movementTypeList[] = { "Normal", "Fast" };
+		int selfBuffsType = 1; //default lifeskill buff: level 7
+		char* selfBuffsTypeList[] = { "LEVEL 5", "LEVEL 7" };
+	}
+
+	//vehicle
+	namespace Vehicle
+	{
+		bool activation = false;
+		int acceleration = 149;
+		int speed = 159;
+		int turn = 145;
+		int brake = 145;
+	}
+
+	namespace Manufacture
+	{
+		bool activation = false;
+	}
+
+	namespace ESP
+	{
+		int targetType = 0;
+		char* targetTypeList[] = { "Player", "Monster", "NPC", "Vehicle", "Gate", "Alterego", "Collect", "Household", "Installation", "Deadbody", "Custom" };
+		bool drawESP = false;
+		bool drawESP_line = false;
+		bool drawESP_circle = false;
+		bool drawESP_name = false;
+		bool drawESP_id = false;
+		bool drawESP_level = false;
+		bool drawESP_distance = false;
+		bool drawWorldMap = false;
+	}
+
+	namespace Fishing
+	{
+		int fishGrade = 4; //default fish grade: Prized fish
+		char* fishGradeList[] = { "White", "Regular", "Big", "Rare", "Prized" };
+		bool activation = false;
+		int currentGrade = 0;
+		bool automateFishing = false;
+		bool lockPosX = true;
+		int freeSlots = 0;
+		bool shutdownOnFull = false;
+		float fishingPosX = NULL;
+	}
+
+	namespace Grinder
+	{
+		bool recordPath = false;
+		int recordPathDelay = 200;
+		bool showSavedPath = false;
+		int lastWaypoint = 0;
+		int grinderType = 1; //default grinder type: teleport
+		char* grinderTypeList[] = { "Normal", "Teleport" };
+		bool activate = false;
+		bool pause = false;
+		bool reloadCheck = false;
+		bool playerDetection = false;
+		bool animationLock = false;
+		bool petLoot = false;
+		bool teleportLooting = false;
+		float teleportLootingRange = 600.0f;
+		float monsterRange = 610.0f;
+		bool monsterDetection = false;
+	}
+
+	namespace Camera
+	{
+		bool activation = false;
+		bool advanced = false;
+		float view1 = 0;
+		float view2 = 0;
+		float view3 = 0;
+		float view4 = 0;
+		float screenshot1 = 0;
+		float screenshot2 = 0;
+		float screenshot3 = 0;
+		float screenshot4 = 0;
+		float screenshot5 = 0;
+	}
 }
 
 //game Enums

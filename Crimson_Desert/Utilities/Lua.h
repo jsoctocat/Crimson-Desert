@@ -1,64 +1,54 @@
 #pragma once
 #include <fstream>
 #include <vector>
-#include <string>
 
 #include "Logs.h"
+#pragma comment(lib, "Library/lua5.1.lib")
+#include "Library/lua.hpp"
 #include "Library/sol.hpp"
 
 std::vector<std::string> g_v_queued_lua_code;
 std::unordered_map<std::string, bool> g_um_lua_pipe_call;
 bool g_b_lua_pipe_call;
 
-//typedef uint64_t(__stdcall* LuaLoadbuffer)(lua_State *L, const char *buff, size_t sz, const char *name);
-//static LuaLoadbuffer g_t_LuaLoadbuffer = (LuaLoadbuffer)g_kuip_LuaLoadbuffer;
-//static LuaLoadbuffer g_t_LuaLoadbufferNull = NULL;
-//uint64_t LuaLoadbufferHook(lua_State *L, const char *buff, size_t sz, const char *name)
-//{
-//	auto result = g_t_LuaLoadbufferNull(L, buff, sz, name);
-//
-//	if(BDO::g_b_debug)
-//	cLog("%s, %d, %s", buff, sz, name);
-//
-//	return result;
-//}
-
-typedef uint64_t(__stdcall* LuaDostring)(lua_State* L, const char* string, int64_t string_length);
-LuaDostring g_t_LuaDostring = (LuaDostring)g_kuip_LuaDostring;
-LuaDostring g_t_LuaDostringNull = NULL;
-uint64_t LuaDostringHook(lua_State* L, const char* string, int64_t string_length)
+typedef uint64_t(__stdcall* tLuaDostring)(const lua_State* L, const char* string, int64_t string_length);
+tLuaDostring g_pLuaDostring = (tLuaDostring)g_kuip_LuaDostring;
+tLuaDostring g_pLuaDostringDetour = NULL;
+uint64_t LuaDostringDetour(const lua_State* L, const char* string, int64_t string_length)
 {
-	auto result = g_t_LuaDostringNull(L, string, string_length);
-
 	std::string reloadUI_check = string;
 	if (reloadUI_check.find("preLoadGameUI") != std::string::npos || reloadUI_check.find("loadLoadingUI") != std::string::npos)
 	{
-		BDO::g_b_reloadedUI = true;
+		BDO::g_bReloadedUI = true;
 	}
 
 	//cLog("%s", string);
 
-	return result;
+	return g_pLuaDostringDetour(L, string, string_length);
 }
 
-typedef uint64_t(__stdcall* LuaGettop)(lua_State* L);
-LuaGettop g_t_LuaGettop = reinterpret_cast<LuaGettop>(g_kuip_LuaGettop);
-LuaGettop g_t_LuaGettopNull = NULL;
-uint64_t LuaGettopHook(lua_State* L)
+typedef uint64_t(__stdcall* tLuaGettop)(lua_State* L);
+tLuaGettop g_pLuaGettop = reinterpret_cast<tLuaGettop>(g_kuip_LuaGettop);
+tLuaGettop g_pLuaGettopDetour = NULL;
+uint64_t LuaGettopDetour(lua_State* L)
 {
-	if (g_v_queued_lua_code.size() > 0 && BDO::g_ui64_last_tick + 100 <= GetTickCount64())
+	if (g_v_queued_lua_code.size() > 0 && BDO::g_ui64LastTick + 100 <= GetTickCount64())
 	{
-		BDO::g_ui64_last_tick = GetTickCount64();
+		BDO::g_ui64LastTick = GetTickCount64();
 
-		std::string l_s_code = g_v_queued_lua_code.front();
+		std::string luaCode;
+		for (const auto& targetLuaCode : g_v_queued_lua_code)
+		{
+			luaCode += targetLuaCode;
+		}
 
-		g_t_LuaDostring(L, l_s_code.c_str(), l_s_code.length());
+		g_pLuaDostring(L, luaCode.c_str(), luaCode.length());
 
 		try
 		{
 			g_v_queued_lua_code.clear();
 		}
-		catch (std::exception &e)
+		catch (std::exception& e)
 		{
 			cLog("Error: %s", e);
 		}
@@ -170,24 +160,25 @@ uint64_t LuaGettopHook(lua_State* L)
 		//BDOLuaVariables::playerPosY = playerPosY();
 		//BDOLuaVariables::playerPosZ = playerPosZ();
 		//BDOLuaVariables::userNickName = userNickName();
+		//BDOLuaVariables::userNickName = lua["get_item_name"](5);
 		//BDOLuaVariables::registListCount = registListCount();
 		//BDOLuaVariables::isGhosting = isGhosting();
 		//BDOLuaVariables::freeRevivalLevel = freeRevivalLevel();
 
 		//can either call original game function or custom script function
 		//try use the lua console before using this, possible crash!
-		lua.script("FreeMem()"); //call custom script collect garbage function
+		//lua.script("FreeMem()"); //call custom script collect garbage function
 	}
 
-	return g_t_LuaGettopNull(L);
+	return g_pLuaGettopDetour(L);
 }
 
-void LuaExecutor(std::string string)
+void LuaExecutor(const std::string& string)
 {
 	g_v_queued_lua_code.emplace_back(string);
 }
 
-void LuaPipe(std::string string, bool is_string)
+void LuaPipe(const std::string& string, const bool& is_string)
 {
 	g_um_lua_pipe_call.emplace(string, is_string);
 }

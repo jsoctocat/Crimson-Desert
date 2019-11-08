@@ -15,7 +15,7 @@ void fLog(const char *message, ...) //log to file
 {
 	if (!message) return;
 
-	char		text[1024]; //was 4096
+	char		text[4096];
 	va_list		args;
 	va_start(args, message);
 	vsprintf_s(text, message, args);
@@ -31,7 +31,7 @@ void cLog(const char *message, ...) //log to console
 {
 	if (!message)	return;
 
-	char		text[1024]; //was 4096
+	char		text[4096];
 	va_list		args;
 	va_start(args, message);
 	vsprintf_s(text, message, args);
@@ -41,17 +41,17 @@ void cLog(const char *message, ...) //log to console
 	{
 		freopen(XorStringA("CONOUT$"), XorStringA("w"), stdout);
 
-		BDO::g_b_show_console = true;
+		BDO::g_bShowConsole = true;
 	}
 
 	std::cout << text << "\n";
 }
 
-void WcLog(const wchar_t *message, ...) //log to console
+void wcLog(const wchar_t *message, ...) //log to console
 {
 	if (!message)	return;
 
-	wchar_t		text[1024]; //was 4096
+	wchar_t		text[4096]; 
 	va_list		args;
 	va_start(args, message);
 	vswprintf_s(text, message, args);
@@ -61,7 +61,7 @@ void WcLog(const wchar_t *message, ...) //log to console
 	{
 		freopen(XorStringA("CONOUT$"), XorStringA("w"), stdout);
 
-		BDO::g_b_show_console = true;
+		BDO::g_bShowConsole = true;
 	}
 
 	std::wcout << text << "\n";

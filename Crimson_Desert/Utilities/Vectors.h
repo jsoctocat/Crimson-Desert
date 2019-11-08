@@ -2,14 +2,14 @@
 
 class Vector2 {
 public:
-	int x, y;
+	float x, y;
 
 	Vector2();
 
-	Vector2(int position_x, int position_y);
+	Vector2(float position_x, float position_y);
 
-	const int& GetX() const { return x; }
-	const int& GetY() const { return y; }
+	const float& GetX() const { return x; }
+	const float& GetY() const { return y; }
 
 	float Get2DDistance(Vector2 target);
 

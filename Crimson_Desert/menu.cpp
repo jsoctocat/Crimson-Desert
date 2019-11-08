@@ -5,23 +5,26 @@
 #include "ImGui/imgui_impl_dx11.h"
 #include "ImGui/imgui_internal.h" //draw line and stuff, math operator
 
-#include <string>
 #include <vector>
 #include <cmath>
-#include <chrono> //draw fps
 #include <thread> //multithreading
+#include <chrono> //draw fps
 #include <sstream>
 #include <unordered_map>
 
 #include <algorithm>
 #include <random>
 
-#include "Foundation/Headers.h" //unhook
 #include "Foundation/Addresses.h"
 #include "Foundation/Offsets.h"
 #include "Foundation/FunctionCalls.h"
 #include "Foundation/GlobalVariables.h"
+#include "./Utilities/String.h"
 
+#include "./LocalPlayer/LocalPlayerContext.h"
+#include "Unhook.h"
+#include "./ESP/ESP.h"
+#include "./Timer/Timer.h"
 #include "Utilities/XorString.h"
 #include "Utilities/Lua.h"
 #include "Utilities/Dump_Functions.h"
@@ -30,8 +33,8 @@
 
 #include "intrin.h" //check if multithreading
 
-#include <experimental/filesystem>
-namespace fs = std::experimental::filesystem;
+#include <filesystem>
+namespace fs = std::filesystem;
 
 class ActorListManager
 {
@@ -78,16 +81,6 @@ public:
 std::vector<Grinder>g_v_waypoints_file;
 
 std::unordered_map<std::string, uint32_t> g_um_esp_actor_id;
-class Market
-{
-public:
-	std::string m_s_name;
-	uint32_t m_ui32_itemid;
-
-	Market(std::string name, uint32_t itemid)
-		: m_s_name(name), m_ui32_itemid(itemid) {}
-};
-std::vector<Market> g_v_market_items;
 
 #pragma region modules
 //format log window timer for marketplace
@@ -104,14 +97,14 @@ std::string get_formatted_datetime()
 	return std::string(::_strdup(time_buffer));
 }
 //draw stuff
-inline void rDrawLine(Vector2 from, Vector2 to, uint32_t color, float thickness)
+inline void rDrawLine(const Vector2& from, const Vector2& to, const uint32_t& color, const float& thickness)
 {
 	ImGuiWindow* window = ImGui::GetCurrentWindow();
 
 	window->DrawList->AddLine(ImVec2(from.x, from.y), ImVec2(to.x, to.y), ImGui::GetColorU32(color), thickness);
 }
 
-inline void rDrawCircle(Vector2 position, float radius, uint32_t color, float thickness, bool filled)
+inline void rDrawCircle(const Vector2& position, const float& radius, const uint32_t& color, const float& thickness, const bool& filled)
 {
 	ImGuiWindow* window = ImGui::GetCurrentWindow();
 
@@ -121,7 +114,7 @@ inline void rDrawCircle(Vector2 position, float radius, uint32_t color, float th
 		window->DrawList->AddCircleFilled(ImVec2(position.x, position.y), radius, ImGui::GetColorU32(color), 12);
 }
 
-inline float rDrawText(ImFont* pFont, const std::string& text, const ImVec2& pos, float size, uint32_t color, bool center)
+inline float rDrawText(const ImFont* pFont, const std::string& text, const ImVec2& pos, const float& size, const uint32_t& color, const bool& center)
 {
 	ImGuiWindow* window = ImGui::GetCurrentWindow();
 
@@ -139,19 +132,15 @@ inline float rDrawText(ImFont* pFont, const std::string& text, const ImVec2& pos
 
 		if (center)
 		{
-			window->DrawList->AddText(pFont, size, ImVec2((pos.x - textSize.x / 2.0f) + 1, (pos.y + textSize.y * i) + 1), ImGui::GetColorU32(ImVec4(0, 0, 0, a / 255)), line.c_str());
-			window->DrawList->AddText(pFont, size, ImVec2((pos.x - textSize.x / 2.0f) - 1, (pos.y + textSize.y * i) - 1), ImGui::GetColorU32(ImVec4(0, 0, 0, a / 255)), line.c_str());
-			window->DrawList->AddText(pFont, size, ImVec2((pos.x - textSize.x / 2.0f) + 1, (pos.y + textSize.y * i) - 1), ImGui::GetColorU32(ImVec4(0, 0, 0, a / 255)), line.c_str());
-			window->DrawList->AddText(pFont, size, ImVec2((pos.x - textSize.x / 2.0f) - 1, (pos.y + textSize.y * i) + 1), ImGui::GetColorU32(ImVec4(0, 0, 0, a / 255)), line.c_str());
-
 			window->DrawList->AddText(pFont, size, ImVec2(pos.x - textSize.x / 2.0f, pos.y + textSize.y * i), ImGui::GetColorU32(color), line.c_str());
 		}
 		else
 		{
-			window->DrawList->AddText(pFont, size, ImVec2((pos.x) + 1, (pos.y + textSize.y * i) + 1), ImGui::GetColorU32(ImVec4(0, 0, 0, a / 255)), line.c_str());
-			window->DrawList->AddText(pFont, size, ImVec2((pos.x) - 1, (pos.y + textSize.y * i) - 1), ImGui::GetColorU32(ImVec4(0, 0, 0, a / 255)), line.c_str());
-			window->DrawList->AddText(pFont, size, ImVec2((pos.x) + 1, (pos.y + textSize.y * i) - 1), ImGui::GetColorU32(ImVec4(0, 0, 0, a / 255)), line.c_str());
-			window->DrawList->AddText(pFont, size, ImVec2((pos.x) - 1, (pos.y + textSize.y * i) + 1), ImGui::GetColorU32(ImVec4(0, 0, 0, a / 255)), line.c_str());
+			//add the following to draw bold text (performance cost)
+			//window->DrawList->AddText(pFont, size, ImVec2((pos.x) + 1, (pos.y + textSize.y * i) + 1), ImGui::GetColorU32(ImVec4(0, 0, 0, a / 255)), line.c_str());
+			//window->DrawList->AddText(pFont, size, ImVec2((pos.x) - 1, (pos.y + textSize.y * i) - 1), ImGui::GetColorU32(ImVec4(0, 0, 0, a / 255)), line.c_str());
+			//window->DrawList->AddText(pFont, size, ImVec2((pos.x) + 1, (pos.y + textSize.y * i) - 1), ImGui::GetColorU32(ImVec4(0, 0, 0, a / 255)), line.c_str());
+			//window->DrawList->AddText(pFont, size, ImVec2((pos.x) - 1, (pos.y + textSize.y * i) + 1), ImGui::GetColorU32(ImVec4(0, 0, 0, a / 255)), line.c_str());
 
 			window->DrawList->AddText(pFont, size, ImVec2(pos.x, pos.y + textSize.y * i), ImGui::GetColorU32(color), line.c_str());
 		}
@@ -163,7 +152,7 @@ inline float rDrawText(ImFont* pFont, const std::string& text, const ImVec2& pos
 	return y;
 }
 
-inline void rDrawSquare(Vector2 center, float size, uint32_t color, float thickness, bool filled = false)
+inline void rDrawSquare(const Vector2& center, const float& size, const uint32_t& color, const float& thickness, const bool& filled)
 {
 	ImGuiWindow* window = ImGui::GetCurrentWindow();
 
@@ -182,7 +171,7 @@ inline void rDrawSquare(Vector2 center, float size, uint32_t color, float thickn
 	delete[] pts;
 }
 
-inline void rDrawWorldCircle(std::vector<Vector2> pts, float radius, uint32_t color, float thickness, bool filled = false)
+inline void rDrawWorldCircle(const std::vector<Vector2>& pts, const float& radius, const uint32_t& color, const float& thickness, const bool& filled)
 {
 	ImGuiWindow* window = ImGui::GetCurrentWindow();
 
@@ -201,7 +190,7 @@ inline void rDrawWorldCircle(std::vector<Vector2> pts, float radius, uint32_t co
 	delete[] new_pts;
 }
 
-inline void rDrawWorldSquare(std::vector<Vector2> pts, float size, uint32_t color, float thickness, bool filled = false)
+inline void rDrawWorldSquare(const std::vector<Vector2>& pts, const float& size, const uint32_t& color, const float& thickness, const bool& filled)
 {
 	ImGuiWindow* window = ImGui::GetCurrentWindow();
 
@@ -220,7 +209,7 @@ inline void rDrawWorldSquare(std::vector<Vector2> pts, float size, uint32_t colo
 	delete[] new_pts;
 }
 
-inline void rDrawWorldBox(std::vector<Vector2> pts, float size, uint32_t color, float thickness, float height = -1)
+inline void rDrawWorldBox(const std::vector<Vector2>& pts, const float& size, const uint32_t& color, const float& thickness, const float& height)
 {
 	rDrawLine(pts[0], pts[1], color, thickness);
 	rDrawLine(pts[1], pts[2], color, thickness);
@@ -239,209 +228,148 @@ inline void rDrawWorldBox(std::vector<Vector2> pts, float size, uint32_t color, 
 }
 #pragma endregion
 
-//only usable once per scope
-inline bool TimerFunction(int64_t delay)
+void InputEvents(const bool& activate, const uint8_t& Vkey_Code1, const uint8_t& Vkey_Code2, const uint8_t& Vkey_Code3)
 {
-	uint8_t check = 0;
-	static bool passed;
-	static std::chrono::steady_clock::time_point last;
-	if (!passed)
-	{
-		last = std::chrono::high_resolution_clock::now();
-		passed = true;
-	}
-	auto now = std::chrono::high_resolution_clock::now();
-
-	if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last).count() >= delay)
-	{
-		//cLog("%d", std::chrono::duration_cast<std::chrono::milliseconds>(now - last).count());
-
-		++check;
-		passed = false;
-	}
-
-	return check > 0;
-}
-
-void InputEvents(bool activate, uint8_t Vkey_Code1, uint8_t Vkey_Code2, uint8_t Vkey_Code3)
-{
-	uint64_t m_ui64_inputListenerAddress = *((uint64_t*)(*((uint64_t*)(g_kuip_Base)) + 0x08));
-	//define foreground patch
-	BYTE* m_bp_foregroundCheck = reinterpret_cast<BYTE*>(g_kuip_GetKeyInputStatePressed + 0x24);
-	BYTE m_b_patchForegroundCheck[2] = { 0xEB,0x40 };
-	//focus window patch
-	BYTE* m_bp_checkFocus = reinterpret_cast<BYTE*>(g_kuip_PatchWindowFocus);
-	BYTE m_b_patchFocus[3] = { 0x0F, 0x95, 0xC0 };
-
-	static bool l_b_firsttime;
-	//patching
-	if (!l_b_firsttime)
-	{
-		memcpy(m_bp_foregroundCheck, m_b_patchForegroundCheck, sizeof(m_b_patchForegroundCheck));
-		memcpy(m_bp_checkFocus, m_b_patchFocus, sizeof(m_b_patchFocus));
-		l_b_firsttime = true;
-	}
-
-	uint64_t mainWindowBaseAddress = *((uint64_t*)(g_kuip_MainWindowBase));
-	uint8_t hasFocus = ((uint64_t)(mainWindowBaseAddress + 0x1478));
-	if (hasFocus == 0)
-	{
-		hasFocus = 1;
-	}
+	uint64_t& m_ui64_inputListenerAddress = *((uint64_t*)(*((uint64_t*)(g_kuip_Base)) + 0x08));
 
 	if (activate)
 	{
 		*((uint64_t*)((m_ui64_inputListenerAddress + 0x840) + (Vkey_Code1 * 4))) = 3;
 		if (Vkey_Code2 != 0)
-			*((uint64_t*)((m_ui64_inputListenerAddress + 0x840) + (Vkey_Code2 * 4))) = 2;
+			* ((uint64_t*)((m_ui64_inputListenerAddress + 0x840) + (Vkey_Code2 * 4))) = 2;
 		if (Vkey_Code3 != 0)
-			*((uint64_t*)((m_ui64_inputListenerAddress + 0x840) + (Vkey_Code3 * 4))) = 1;
+			* ((uint64_t*)((m_ui64_inputListenerAddress + 0x840) + (Vkey_Code3 * 4))) = 1;
 	}
 	if (TimerFunction(10))
 	{
 		*((uint64_t*)((m_ui64_inputListenerAddress + 0x840) + (Vkey_Code1 * 4))) = 0;
 		if (Vkey_Code2 != 0)
-			*((uint64_t*)((m_ui64_inputListenerAddress + 0x840) + (Vkey_Code2 * 4))) = 0;
+			* ((uint64_t*)((m_ui64_inputListenerAddress + 0x840) + (Vkey_Code2 * 4))) = 0;
 		if (Vkey_Code3 != 0)
-			*((uint64_t*)((m_ui64_inputListenerAddress + 0x840) + (Vkey_Code3 * 4))) = 0;
+			* ((uint64_t*)((m_ui64_inputListenerAddress + 0x840) + (Vkey_Code3 * 4))) = 0;
 	}
 }
-class PatchNavigation
+void PatchNavigation()
 {
-	uint64_t RegionList_FirstEntry = *((uint64_t*)(g_kuip_RegionInfoManager + 0x10));
-	uint64_t RegionList_ListStart = *((uint64_t*)(g_kuip_RegionInfoManager + 0x20));
-	uint64_t RegionList_ListEnd = *((uint64_t*)(g_kuip_RegionInfoManager + 0x28));
+	uint64_t& RegionList_FirstEntry = *((uint64_t*)(g_kuip_RegionInfoManager + 0x10));
+	uint64_t& RegionList_ListStart = *((uint64_t*)(g_kuip_RegionInfoManager + 0x20));
+	uint64_t& RegionList_ListEnd = *((uint64_t*)(g_kuip_RegionInfoManager + 0x28));
 
-	uint32_t maxSize = ((RegionList_ListEnd - RegionList_ListStart) / 0x08);
+	uint32_t maxSize = ((RegionList_ListEnd - RegionList_ListStart) / 0x08); //maxsize(count in reclass) is 864 as of 1187
 
-	uint64_t firstNode = RegionList_FirstEntry;
+	uint64_t& firstNode = RegionList_FirstEntry;
 	uint64_t curNode = firstNode;
-public:
-	PatchNavigation()
+
+	std::vector<uint64_t> l_v_region_info;
+	l_v_region_info.reserve(maxSize);
+
+	for (uint32_t count = 0; count < maxSize; count++)
 	{
-		std::vector<uint64_t> l_v_region_info;
-		l_v_region_info.reserve(maxSize);
+		uint64_t NextNodePtr = *((uint64_t*)(curNode));
+		uint64_t PreviousNodePtr = *((uint64_t*)(NextNodePtr + 0x08));
+		//cLog("printing %d: %x, %x, %x", count, curNode, NextNodePtr, PreviousNodePtr);
 
-		for (uint32_t count = 0; count < maxSize; count++)
+		if (PreviousNodePtr == curNode && NextNodePtr != firstNode)
 		{
-			uint64_t NextNodePtr = *((uint64_t*)(curNode));
-			uint64_t PreviousNodePtr = *((uint64_t*)(NextNodePtr + 0x08));
-			//cLog("printing %d: %x, %x, %x", count, curNode, NextNodePtr, PreviousNodePtr);
+			uint64_t& RegionDataPtr = *((uint64_t*)(curNode + 0x18));
+			l_v_region_info.emplace_back(RegionDataPtr);
+			//cLog("printing %d: %x, %x", count, RegionDataPtr, regionInfo[count].address);
 
-			if (PreviousNodePtr == curNode && NextNodePtr != firstNode)
-			{
-				uint64_t RegionDataPtr = *((uint64_t*)(curNode + 0x18));
-				l_v_region_info.emplace_back(((uint64_t)(RegionDataPtr)));
-				//cLog("printing %d: %x, %x", count, RegionDataPtr, regionInfo[count].address);
-
-				curNode = NextNodePtr;
-				//cLog("printing %d: %x, %x", count, curNode, NextNodePtr);
-			}
-			else
-			{
-				break;
-			}
-
+			curNode = NextNodePtr;
+			//cLog("printing %d: %x, %x", count, curNode, NextNodePtr);
 		}
-		//RegionData.cs + Navigation.cs
-		for (int count = 1; count < l_v_region_info.size(); count++)
-		{
-			uint64_t& addressplaceholder = l_v_region_info[count];
-			//cLog("printing %d: %x, %x", count, addressplaceholder, regionInfo[count].address);
-			//cLog("printing %d: passed", count);
-			uint8_t& isDesert = *((uint8_t*)(addressplaceholder + g_ki32_IsDesert));
-			if (isDesert)
-			{
-				//cLog("isDesert trigger at %d", count);
-				isDesert = 0;
-			}
-			uint8_t& isOcean = *((uint8_t*)(addressplaceholder + g_ki32_IsOcean));
-			if (isOcean)
-			{
-				//cLog("isOcean trigger at %d", count);
-				isOcean = 0;
-			}
-
-			uint8_t& isAccessableArea = *((uint8_t*)(addressplaceholder + g_ki32_IsAccessableArea));
-			if (!isAccessableArea)
-			{
-				//cLog("isAccessableArea trigger at %d", count);
-				isAccessableArea = 1;
-			}
-		}
+		else { break; }
 	}
-};
+	//RegionData.cs + Navigation.cs
+	for (int count = 1; count < l_v_region_info.size(); count++)
+	{
+		uint64_t& addressplaceholder = l_v_region_info[count];
+		//cLog("printing %d: %x, %x", count, addressplaceholder, regionInfo[count].address);
+		//fLog("printing %d: passed", addressplaceholder);
+		uint8_t& isDesert = *((uint8_t*)(addressplaceholder + g_ki32_IsDesert));
+		if (isDesert)
+		{
+			//cLog("isDesert trigger at %d", count);
+			isDesert = 0;
+		}
+		uint8_t& isOcean = *((uint8_t*)(addressplaceholder + g_ki32_IsOcean));
+		if (isOcean)
+		{
+			//cLog("isOcean trigger at %d", count);
+			isOcean = 0;
+		}
+
+		//Always in battle arena (premium character out of bound fix)
+		//uint8_t& isBattleArena = *((uint8_t*)(addressplaceholder + g_ki32_RegionType));
+		//if (isBattleArena != 6)
+		//{
+		//	//cLog("isBattleArena trigger at %d", count);
+		//	isBattleArena = 6;
+		//}
+
+		//uint8_t& isAccessableArea = *((uint8_t*)(addressplaceholder + g_ki32_IsAccessableArea));
+		//if (!isAccessableArea)
+		//{
+		//	//cLog("isAccessableArea trigger at %d", count);
+		//	isAccessableArea = 1;
+		//}
+	}
+}
+
 class Entity
 {
-	uint64_t m_ui64_local_player_address;
-	uint8_t m_ui8_maxinventory_slots;
-	uint64_t m_ui64_character_control_address;
-	uint64_t m_ui64_character_scene_address;
-	uint64_t m_ui64_teleport_1;
-	uint64_t m_ui64_teleport_2;
-	uint64_t m_ui64_teleport_3;
-	uint64_t m_ui64_current_mainhand_address;
-	uint16_t m_ui16_current_mainhand;
-	uint8_t m_ui8_free_inventory_slots;
-	uint16_t m_ui16_get_current_mainhand_durability;
-	uint8_t m_ui8_fish_grade;
-	//uint8_t isFishing = *((uint8_t*)(localPlayer + g_ki32_IsFishing)); //hella buggy, switched over to fetch/check animation names
+	uint64_t& m_ui64_local_player_address = *((uint64_t*)g_kuip_LocalPlayer);
+	uint64_t& m_ui64_character_control_address = *((uint64_t*)(m_ui64_local_player_address + g_ki32_CharacterController));
+	uint64_t& m_ui64_character_scene_address = *((uint64_t*)(m_ui64_character_control_address + g_ki32_CharacterScene));
+	uint64_t& m_ui64_teleport_1 = *((uint64_t*)(m_ui64_character_scene_address + g_ki32_teleport_1));
+	uint64_t& m_ui64_teleport_2 = *((uint64_t*)(m_ui64_teleport_1 + g_ki32_teleport_2));
+	uint64_t& m_ui64_teleport_3 = *((uint64_t*)(m_ui64_teleport_2 + g_ki32_teleport_3));
+	uint32_t& m_ui32_current_mainhand = *((uint32_t*)(m_ui64_local_player_address + g_ki32_EquipmentStart));
+	uint16_t& m_ui16_current_mainhand_durability = *((uint16_t*)(m_ui64_local_player_address + g_ki32_MaindHandDurab));
+	uint8_t& m_ui8_free_inventory_slots = *((uint8_t*)(m_ui64_local_player_address + g_ki32_FreeInventorySlots));
+	uint8_t& m_ui8_maxinventory_slots = *((uint8_t*)(m_ui64_local_player_address + g_ki32_MaxInventorySlots));
+	uint8_t& m_ui8_fish_grade = *((uint8_t*)(m_ui64_local_player_address + g_ki32_FishGrade));
+	uint8_t& m_ui8_is_fishing = *((uint8_t*)(m_ui64_local_player_address + g_ki32_IsFishing)); //very buggy, switched over to fetch/check animation names
 	uint16_t m_i16_fishing_equipments[22] = { /*fishing rods ->*/17669, 17596, 16152, 17613, 17612, 17592, 17591, 16153, 16162, 16164, 16163, 16166, 16165, 16151, 16147, 16141, 16150, 16441, /*harpoon ->*/16154, 16155, 16478, 29229 };
 
 public:
 	Entity()
 	{
-		m_ui64_local_player_address = *((uint64_t*)g_kuip_LocalPlayer);
 
-		m_ui8_maxinventory_slots = *((uint8_t*)(m_ui64_local_player_address + g_ki32_MaxInventorySlots));
-
-		m_ui64_character_control_address = *((uint64_t*)(m_ui64_local_player_address + g_ki32_CharacterController));
-		m_ui64_character_scene_address = *((uint64_t*)(m_ui64_character_control_address + g_ki32_CharacterScene));
-
-		m_ui64_teleport_1 = *((uint64_t*)(m_ui64_character_scene_address + g_ki32_teleport_1));
-		m_ui64_teleport_2 = *((uint64_t*)(m_ui64_teleport_1 + g_ki32_teleport_2));
-		m_ui64_teleport_3 = *((uint64_t*)(m_ui64_teleport_2 + g_ki32_teleport_3));
-
-		m_ui64_current_mainhand_address = *((uint64_t*)(m_ui64_local_player_address + g_ki32_EquipmentStart));
-		m_ui16_current_mainhand = *((uint16_t*)(m_ui64_current_mainhand_address + g_ki32_ItemIndex));
-		m_ui8_free_inventory_slots = *((uint8_t*)(m_ui64_local_player_address + g_ki32_FreeInventorySlots));
-		m_ui16_get_current_mainhand_durability = *((uint16_t*)(m_ui64_local_player_address + g_ki32_MaindHandDurab));
-		m_ui8_fish_grade = *((uint8_t*)(m_ui64_local_player_address + g_ki32_FishGrade));
-		//isFishing = *((uint8_t*)(localPlayer + g_ki32_IsFishing)); //hella buggy, switched over to fetch/check animation names
 	}
-	int AnimationCheck(int check, std::string name)
+	bool AnimationCheck(int check, std::string name)
 	{
 		bool passed_check = false;
-		uint64_t currentAnimationPtr = *((uint64_t*)(m_ui64_character_control_address + 0x38));
-		uint64_t currentAnimation = *((uint64_t*)(currentAnimationPtr + 0x20));
-		uint32_t animationId = *((uint32_t*)(currentAnimation));
+		uint64_t& currentAnimationPtr = *((uint64_t*)(m_ui64_character_control_address + 0x38));
+		uint64_t& currentAnimation = *((uint64_t*)(currentAnimationPtr + 0x20));
+		uint32_t& animationId = *((uint32_t*)(currentAnimation));
 
-		uint64_t stringTable_address = *((uint64_t*)(g_kuip_StringTable_ASCII));
-		uint64_t stringTable = *((uint64_t*)(stringTable_address));
+		uint64_t& stringTable_address = *((uint64_t*)(g_kuip_StringTable_ASCII));
+		uint64_t& stringTable = *((uint64_t*)(stringTable_address));
 
-		uint64_t NameEntryAddy;
-
-		NameEntryAddy = (stringTable + (0x10 * animationId));
+		uint64_t NameEntryAddy = (stringTable + (0x10 * animationId));
 		std::string animationName((char*)(*((uint64_t*)(NameEntryAddy))));
 
 		switch (check)
 		{
 		case 0: //general checking
-			if (animationName.find("Skill") != std::string::npos || animationName.find("skill") != std::string::npos
-				|| animationName.find("ATTACK") != std::string::npos || animationName.find("Attack") != std::string::npos
-				|| animationName.find("RIFLE") != std::string::npos || animationName.find("ITEM_PICK") != std::string::npos
-				|| (animationName.find("FISHING") != std::string::npos && animationName != "FISHING_WAIT" && animationName != "FISHING_HOOK_SUCCESS")  /*check if contains fishing but exclude waiting and success*/
-				|| (animationName.find("HARPOON") != std::string::npos && animationName != "HARPOON_AIM_WAIT" && animationName != "HARPOON_AIM_MINIGAME_SUCCESS")) /*check if contains fishing but exclude waiting and success*/
+			if (animationName.find(XorStringA("Skill")) != std::string::npos || animationName.find(XorStringA("skill")) != std::string::npos
+				|| animationName.find(XorStringA("ATTACK")) != std::string::npos || animationName.find(XorStringA("Attack")) != std::string::npos
+				|| animationName.find(XorStringA("Casting")) != std::string::npos //|| animationName.find("Lute") != std::string::npos //for shai
+				//|| animationName.find(XorStringA("DarkBurster")) != std::string::npos || animationName.find(XorStringA("EvilForces")) != std::string::npos //for sorc
+				|| animationName.find(XorStringA("RIFLE")) != std::string::npos || animationName.find(XorStringA("ITEM_PICK")) != std::string::npos
+				|| (animationName.find(XorStringA("FISHING")) != std::string::npos && animationName != XorStringA("FISHING_WAIT") && animationName != XorStringA("FISHING_HOOK_SUCCESS"))  /*check if contains fishing but exclude waiting and success*/
+				|| (animationName.find(XorStringA("HARPOON")) != std::string::npos && animationName != XorStringA("HARPOON_AIM_WAIT") && animationName != XorStringA("HARPOON_AIM_MINIGAME_SUCCESS"))) /*check if contains fishing but exclude waiting and success*/
 				passed_check = true;
 			break;
 		case 1: //fishing
-			if (animationName == "WAIT" || animationName == "WAIT2"
-				|| animationName == "FISHING_HOOK_READY" || animationName == "FISHING_HOOK_ING"
-				|| animationName == "HARPOON_AIM_MINIGAME_START")
+			if (animationName == XorStringA("WAIT") || animationName == XorStringA("WAIT2")
+				|| animationName == XorStringA("FISHING_HOOK_READY") || animationName == XorStringA("FISHING_HOOK_ING")
+				|| animationName == XorStringA("HARPOON_AIM_MINIGAME_START"))
 				passed_check = true;
 			break;
 		case 2: //general waiting check
-			if (animationName == "WAIT" || animationName == "WAIT2")
+			if (animationName == XorStringA("WAIT") || animationName == XorStringA("WAIT2"))
 				passed_check = true;
 			break;
 		case 3:
@@ -458,7 +386,7 @@ public:
 		//Log("printing: %d", passed_check);
 		return passed_check;
 	}
-	//if check is 0, direct teleport, if its 1, modification such as add or subtract, if its 2 or more, modification except y at 80
+	//if check == 0 then direct teleport, if check is == 1 then current location +/- xyz, else if check >= 2 then current location +/- xy but y will be locked at 80.00f
 	void Teleportation(const float& x, const float& y, const float& z, const uint16_t& check, const uint16_t& delay)
 	{
 		//delay before teleport because you need to prep the distance so you dont fail the server check, teleport distance is 1 => 1ms (NOT LESS!)
@@ -485,73 +413,98 @@ public:
 			*((float*)(m_ui64_teleport_3 + g_ki32_teleport_z)) = *((float*)(m_ui64_teleport_3 + g_ki32_teleport_z)) + (z);
 		}
 	}
-	void MoveTo(const float& to_x, const float& to_y, const float& to_z, const float& from_x, const float& from_y, const float& from_z, const float& activate)
+	void MoveTo(const float& to_x, const float& to_y, const float& to_z)
 	{
+		//grab current location
+		uint64_t& local_player_address = *((uint64_t*)g_kuip_LocalPlayer);
+		float& current_position_x = *((float*)(local_player_address + g_ki32_WorldPosition_Self[0]));
+		float& current_position_y = *((float*)(local_player_address + g_ki32_WorldPosition_Self[1]));
+		float& current_position_z = *((float*)(local_player_address + g_ki32_WorldPosition_Self[2]));
 
+		//movement functions
+		bool& activated = *((bool*)(local_player_address + g_ki32_MovementControl));
+		float& destination_position_x = *((float*)(local_player_address + g_ki32_MovementDestinationX));
+		float& destination_position_y = *((float*)(local_player_address + g_ki32_MovementDestinationY));
+		float& destination_position_z = *((float*)(local_player_address + g_ki32_MovementDestinationZ));
+		float& origin_position_x = *((float*)(local_player_address + g_ki32_MovementOriginX));
+		float& origin_position_y = *((float*)(local_player_address + g_ki32_MovementOriginY));
+		float& origin_position_z = *((float*)(local_player_address + g_ki32_MovementOriginZ));
+
+		//move to location
+		activated = true;
+		destination_position_x = to_x;
+		destination_position_y = to_y;
+		destination_position_z = to_z;
+		origin_position_x = current_position_x;
+		origin_position_y = current_position_y;
+		origin_position_z = current_position_z;
 	}
 
 	bool SwitchRod()
 	{
-		//fetch inventory items
-		std::vector<InvenPipe>inven_dump;
-		inven_dump.reserve(m_ui8_maxinventory_slots);
-		inven_dump = DumpInventory(2);
+		//fetch inventory information
+		std::vector<InvenPipe>inventoryInfo;
+		int8_t maxInventorySlots = DumpInventory(2, &inventoryInfo);
+
+		std::string queue_up_lua_code;
+
 		//get rods
-
 		std::vector<uint8_t> l_v_rod_slot;
-		l_v_rod_slot.reserve(m_ui8_maxinventory_slots);
-
+		l_v_rod_slot.reserve(maxInventorySlots);
 		int rodsLeft = 0;
-		for (uint8_t x = 2; x < m_ui8_maxinventory_slots; x++) //trash bad rods, inventory starts at 2
+		for (uint8_t x = 2; x < maxInventorySlots; x++) //trash bad rods, inventory starts at 2
 		{
 			for (int y = 0; y < sizeof(m_i16_fishing_equipments); y++)
 			{
-				if (inven_dump[x].m_ui16_item_id == m_i16_fishing_equipments[y] && inven_dump[x].m_ui16_current_durability > 0)
+				if (inventoryInfo[x].m_ui16_item_id == m_i16_fishing_equipments[y] && inventoryInfo[x].m_ui16_current_durability > 0)
 				{
-					l_v_rod_slot.emplace_back(inven_dump[x].m_ui8_slot);
+					l_v_rod_slot.emplace_back(inventoryInfo[x].m_ui8_slot);
 					rodsLeft++;
 				}
-				else if (inven_dump[x].m_ui16_item_id == m_i16_fishing_equipments[y] && inven_dump[x].m_ui16_current_durability == 0 &&
-					inven_dump[x].m_ui8_enhancement_level == 0 && inven_dump[x].m_ui32_npc_repair_price == 0)
+				else if (inventoryInfo[x].m_ui16_item_id == m_i16_fishing_equipments[y] && inventoryInfo[x].m_ui16_current_durability == 0)
 				{
-					std::string convertx = std::to_string(inven_dump[x].m_ui8_slot);
-					std::string converty = "1";
-					LuaExecutor("deleteItem((getSelfPlayer()):getActorKey(),(CppEnums.ItemWhereType).eInventory," + convertx + "," + converty + ")");
+					std::string slot = std::to_string(inventoryInfo[x].m_ui8_slot - 1);
+					queue_up_lua_code += XorStringA("Inventory_DeleteItem(") + slot + ')';
 				}
 			}
 		}
 		std::unordered_map<std::string, uint32_t> filterItems;
-		std::string filteritemName;
+		std::string endReading = XorStringA("<end>");
+		std::string itemName;
 		int filteritemId;
 		int filterdupCheck = 0;
 		std::ifstream filterfin;
 		filterfin.open(GetDirectoryFile(XorStringA("FilterItems.ini")), std::ifstream::in);
 		while (filterfin.good())
 		{
-			std::getline(filterfin, filteritemName, ',');
+			std::getline(filterfin, itemName, ',');
+			if (itemName.find(endReading) != std::string::npos)
+				break;
 			filterfin >> filteritemId;
 			filterfin.ignore(1); //ignore newline
 			if (filterdupCheck == filteritemId)
 				break;
-			filterItems.emplace(filteritemName, filteritemId);
-			//Log("counter %d", filteritemId);
+			filterItems.emplace(itemName, filteritemId);
+			//fLog("counter %d", filteritemId);
 			filterdupCheck = filteritemId;
 		}
 		filterfin.close();
-		//Log("counter %d", filterCounter);
 
-		for (int x = 2; x < m_ui8_maxinventory_slots; x++) //trash garbage items
+		//trash garbage items
+		for (int x = 2; x < maxInventorySlots; x++)
 		{
 			for (auto& target : filterItems)
 			{
-				if (inven_dump[x].m_ui16_item_id == target.second)
+				if (inventoryInfo[x].m_ui16_item_id == target.second)
 				{
-					std::string convertx = std::to_string(inven_dump[x].m_ui8_slot);
-					std::string converty = "1";
-					LuaExecutor("deleteItem((getSelfPlayer()):getActorKey(),(CppEnums.ItemWhereType).eInventory," + convertx + "," + converty + ")");
+					std::string slot = std::to_string(inventoryInfo[x].m_ui8_slot);
+					queue_up_lua_code += XorStringA("Inventory_DeleteItem(") + slot + XorStringA(")");
 				}
 			}
 		}
+
+		if (!queue_up_lua_code.empty())
+			LuaExecutor(queue_up_lua_code.c_str());
 
 		//return true if no more rods left in inventory
 		if (rodsLeft == 0)
@@ -562,289 +515,160 @@ public:
 		else
 		{
 			//cLog("rodsleft more than 1");
-			g_t_UseInventoryItem(0, l_v_rod_slot[0]);
+			LuaExecutor(XorStringA("inventoryUseItem(CppEnums.ItemWhereType.eInventory, ") + std::to_string(l_v_rod_slot[0]) + XorStringA(", 0, true)"));
 			return false;
 		}
 	}
-	void AutoFish(int predictGrade, bool relics_only)
+	void AutoFish(const int& predictGrade)
 	{
-		bool Enabled = false;
+		bool enabled = false;
 		static int disableFishing;
 
 		//stop fishing if there are no free inventory slots
-		if (m_ui8_free_inventory_slots == 0)
+		if (m_ui8_free_inventory_slots <= BDO::Fishing::freeSlots)
 		{
-			BDO::g_b_auto_fishing = false;
+			BDO::Fishing::activation = false;
+
+			if (BDO::Fishing::shutdownOnFull)
+				ExitProcess(0);
+
 			return;
 		}
-
 		//check if holding fishing equipments
 		for (int count = 0; count < sizeof(m_i16_fishing_equipments); count++)
 		{
-			if (m_ui16_current_mainhand == m_i16_fishing_equipments[count])
+			if (m_ui32_current_mainhand == m_i16_fishing_equipments[count])
 			{
-				Enabled = true;
+				enabled = true;
 				break; //break out of loop if found for performance
 			}
 			else
-				Enabled = false;
+				enabled = false;
 		}
-
 		//check whether or not the player is able to press space to start or grab fish
-		if (Enabled)
-			InputEvents(AnimationCheck(1, ""), BDOEnums::KeyCode_SPACE, BDOEnums::KeyCode_None, BDOEnums::KeyCode_None);
+		if (enabled)
+			InputEvents(AnimationCheck(1, XorStringA("")), BDOEnums::KeyCode_SPACE, BDOEnums::KeyCode_None, BDOEnums::KeyCode_None);
 
 		//if fishing then reset switch fishing equipment count
-		if (AnimationCheck(3, "FISHING") || AnimationCheck(3, "HARPOON"))
+		if (AnimationCheck(3, XorStringA("FISHING")) || AnimationCheck(3, XorStringA("HARPOON")))
 			disableFishing = 0;
 
 		//switch fishing equipment if mainhand durability is zero
-		if (AnimationCheck(2, "") && m_ui16_get_current_mainhand_durability == 0)
+		if (AnimationCheck(2, "") && m_ui16_current_mainhand_durability == 0)
 		{
 			//switch fishing equipment then check for the new fishing equipment durability
-			if (SwitchRod() && m_ui16_get_current_mainhand_durability == 0)
+			if (SwitchRod() && m_ui16_current_mainhand_durability == 0)
 			{
 				disableFishing++;
 
 				if (disableFishing == 10) //will check 10 times for rods before stop fishing
 				{
-					BDO::g_b_auto_fishing = false;
+					BDO::Fishing::activation = false;
+					return;
 				}
 			}
 			else //attempt to use up the last fishing equipment's durability
-				InputEvents(AnimationCheck(1, ""), BDOEnums::KeyCode_SPACE, BDOEnums::KeyCode_None, BDOEnums::KeyCode_None);
+				InputEvents(AnimationCheck(1, XorStringA("")), BDOEnums::KeyCode_SPACE, BDOEnums::KeyCode_None, BDOEnums::KeyCode_None);
 		}
 
-		if (!relics_only) //nonrelic fishing
+		BDO::Fishing::currentGrade = m_ui8_fish_grade;
+
+		if ((AnimationCheck(4, XorStringA("FISHING_WAIT")) || AnimationCheck(4, XorStringA("HARPOON_AIM_WAIT"))) && m_ui8_fish_grade < predictGrade)
 		{
-			//cLog("%d", relics_only);
-			if (AnimationCheck(4, "FISHING_WAIT") || AnimationCheck(4, "HARPOON_AIM_WAIT")
-				&& m_ui8_fish_grade < predictGrade)
-			{
-				SwitchRod();
-				*((uint8_t*)(m_ui64_local_player_address + g_ki32_IsFishing)) = 0;
-			}
+			//SwitchRod(); 
+			m_ui8_is_fishing = 0;
 		}
-		else //relic fishing
-		{
-			//cLog("%d", relics_only);
-			if (AnimationCheck(4, "FISHING_WAIT") || AnimationCheck(4, "HARPOON_AIM_WAIT")
-				&& m_ui8_fish_grade != 1)
-			{
-				SwitchRod();
-				*((uint8_t*)(m_ui64_local_player_address + g_ki32_IsFishing)) = 0;
-			}
-		}
-	}
-
-	void WorkersRestore()
-	{
-		if (TimerFunction(10000)) //check every 10secs, any higher it will be inaccurate
-		{
-			//dump and fetch inventory
-			std::vector<InvenPipe>inven_dump;
-			inven_dump.reserve(m_ui8_maxinventory_slots);
-			inven_dump = DumpInventory(2);
-
-			int RestoreItems[10] = { 9213, 9283, 9261, 9276, 9268, 9273, 9208, 9297, 9215, 9300 };
-
-			uint64_t workerListStart = *((uint64_t*)(g_kuip_WorkerList + 0x18));
-			uint64_t workerListEnd = *((uint64_t*)(g_kuip_WorkerList + 0x20));
-			uint32_t totalWorkers = (workerListEnd - workerListStart) / 0x8;
-
-			std::vector<uint8_t> l_v_worker_stamina;
-			l_v_worker_stamina.reserve(totalWorkers);
-
-			uint64_t dupAddresses = 0; //check for duplicates
-			int x = 0;
-			for (uint32_t counter = 0; counter < totalWorkers; counter++)
-			{
-				uint64_t fakeAddresses = *((uint64_t*)(workerListStart + 0x10));
-				uint64_t currentWorker = *((uint64_t*)(workerListStart + x));
-				x += 0x8;
-				if (currentWorker == fakeAddresses || dupAddresses == currentWorker)
-					continue;
-
-				uint8_t currentStamina = *((uint8_t*)(currentWorker + 0x42));
-				dupAddresses = currentWorker;
-				if (currentStamina <= 40)
-				{
-					//cLog("stamina %d, %d", counter, currentStamina);
-					l_v_worker_stamina.emplace_back(currentStamina);
-				}
-			}
-
-			bool needRefill = false;
-			for (const auto& targets : l_v_worker_stamina)
-			{
-				if (targets < 2)
-				{
-					needRefill = true;
-					break;
-				}
-			}
-
-			std::string LuaCommand;
-			if (needRefill)
-			{
-				for (int x = 2; x < m_ui8_maxinventory_slots; x++)//const auto& invenItems : inven_dump
-				{
-					for (int y = 0; y < 10; y++)
-					{
-						if (inven_dump[x].m_ui16_item_id == RestoreItems[y])
-						{
-							//LuaExecutor("workerManager_Open()");
-
-							LuaExecutor(XorStringA("HandleClicked_workerManager_RestoreAll()"));
-							LuaExecutor(XorStringA("HandleClicked_restoreAll_SelectItem(0)"));
-							LuaExecutor(XorStringA("workerRestoreAll_Confirm(0)"));
-							LuaExecutor(XorStringA("HandleClicked_workerManager_ReDoAll()"));
-
-							//LuaExecutor(XorStringA("workerManager_Close()"));
-							return;
-						}
-					}
-					if (x == m_ui8_maxinventory_slots - 1)
-					{
-						BDO::g_b_worker_auto_restore = false;
-						return;
-					}
-				}
-			}
-		}
-	}
-
-	void reloadUI()
-	{
-		static bool activate;
-		static bool not_in_rbf;
-		static bool rbf_afk_check;
-
-		if (BDO::g_b_reloadedUI)
-			not_in_rbf = true;
-
-		if (!not_in_rbf && !BDO::g_b_auto_manufacture && !BDO::g_b_auto_buy && !BDO::g_b_auto_fishing && AnimationCheck(2, "") && TimerFunction(2000))
-		{
-			if (!activate)
-			{
-				g_t_UseInventoryItem(0, 2);
-				//*((float*)(m_ui64_teleport_3 + 0x120)) = *((float*)(m_ui64_teleport_3 + 0x120)) + 10;
-				//*((float*)(m_ui64_teleport_3 + 0x124)) = *((float*)(m_ui64_teleport_3 + 0x124)) + 15;
-				activate = true;
-			}
-			//std::thread(InputEvents, AnimationCheck(1, ""), BDOEnums::KeyCode_SPACE, BDOEnums::KeyCode_None, BDOEnums::KeyCode_None).detach();
-			//InputEvents(AnimationCheck(1, ""), BDOEnums::KeyCode_T, BDOEnums::KeyCode_None, BDOEnums::KeyCode_None);
-		}
-
-		if (m_ui8_fish_grade == BDO::g_i32_predictGrade && !rbf_afk_check
-			&& AnimationCheck(4, "FISHING_WAIT") || AnimationCheck(4, "HARPOON_AIM_WAIT"))
-		{
-			//*((float*)(m_ui64_teleport_3 + g_ki32_teleport_x)) = 3325;
-			//*((float*)(m_ui64_teleport_3 + g_ki32_teleport_y)) = *((float*)(m_ui64_teleport_3 + g_ki32_teleport_y)) + 15;
-			*((float*)(m_ui64_teleport_3 + g_ki32_teleport_y)) = -81.25f;
-			*((float*)(m_ui64_teleport_3 + g_ki32_teleport_x)) = 3329.0f;
-			*((float*)(m_ui64_teleport_3 + g_ki32_teleport_z)) = 6525.7f;
-
-			rbf_afk_check = true;
-		}
-		if (AnimationCheck(4, "FISHING_HOOK_READY") || AnimationCheck(4, "FISHING_HOOK_SUCCESS")
-			|| AnimationCheck(4, "HARPOON_AIM_SHOT_FIRE") || AnimationCheck(4, "HARPOON_AIM_MINIGAME_SUCCESS"))
-		{
-			*((float*)(m_ui64_teleport_3 + g_ki32_teleport_y)) = -81.7f;
-			*((float*)(m_ui64_teleport_3 + g_ki32_teleport_x)) = 3321.0f;
-			*((float*)(m_ui64_teleport_3 + g_ki32_teleport_z)) = 6525.7f;
-			activate = false;
-			not_in_rbf = false;
-			rbf_afk_check = false;
-		}
-
-		if (!*BDO::g_p_in_game || !BDO::g_b_is_ready_to_play)
-		{
-			ExitProcess(0);
-		}
+		//else if (m_ui8_fish_grade < 0 || m_ui8_fish_grade > 3)
+		//{
+		//	fLog("grade detected: %d", m_ui8_fish_grade);
+		//}
 	}
 
 	void AutoManufacture()
 	{
 		//auto manufacture
-		if (BDO::g_b_auto_manufacture)
+		static bool storageCheck, waitCheck, ManufacturingCheck;
+		if (BDO::Manufacture::activation)
 		{
-			if (*BDO::g_p_warehouse_exist && g_v_manufacture_file.size() == 0)
+			if (*BDO::g_pWarehouse && g_v_manufacture_file.size() == 0)
 			{
-				BDO::g_b_auto_manufacture = false;
+				BDO::Manufacture::activation = false;
 				LuaExecutor(XorStringA("Proc_ShowMessage_Ack('<PAColor0xFFB69A80>Filter File Not Loaded!<PAOldColor>')"));
 			}
-			else if (*BDO::g_p_warehouse_exist && g_v_manufacture_file.size() != 0)
+			else if (*BDO::g_pWarehouse && g_v_manufacture_file.size() != 0)
 			{
-				//fetch warehouse items
-				uint64_t currentwarehouse_address = *((uint64_t*)g_kuip_CurrentWarehouse);
-				uint32_t totalstorageslots = *((uint32_t*)(currentwarehouse_address + 0x04)) + 1;
-				std::vector<StoragePipe>stor_dump;
-				stor_dump.reserve(totalstorageslots);
-				stor_dump = DumpWarehouse(2);
+				//fetch warehouse information
+				std::vector<StoragePipe>storageInfo;
+				uint32_t maxStorageSlots = DumpWarehouse(2, &storageInfo);
 
-				//dump and fetch inventory
-				std::vector<InvenPipe>inven_dump;
-				inven_dump.reserve(m_ui8_maxinventory_slots);
-				inven_dump = DumpInventory(2);
+				//fetch inventory information
+				std::vector<InvenPipe>inventoryInfo;
+				int8_t maxInventorySlots = DumpInventory(2, &inventoryInfo);
 
 				static int slotNo_w, procType_w;
 				static std::string procType_wn;
-				if (!AnimationCheck(3, "MANUFACTURE") && !BDO::g_b_storage_check)
+				if (!AnimationCheck(3, XorStringA("MANUFACTURE")) && !storageCheck)
 				{
 					for (int count = 0; count < g_v_manufacture_file.size(); count++)//const auto& filter : manufacturefile)
 					{
-						for (const auto& storage : stor_dump)
+						for (const auto& storage : storageInfo)
 						{
 							if (storage.m_ui16_item_id == g_v_manufacture_file[count].itemId && storage.m_ui32_item_count >= 10)
 							{
 								slotNo_w = storage.m_ui8_slot;
 								procType_w = g_v_manufacture_file[count].procType_w;
 								procType_wn = g_v_manufacture_file[count].procType_wn;
-								BDO::g_b_storage_check = true;
-								goto endloop;
+								storageCheck = true;
+								goto endLoop;
 							}
 						}
 						if (count == g_v_manufacture_file.size() - 1)
 						{
-							BDO::g_b_auto_manufacture = false;
+							BDO::Manufacture::activation = false;
 						}
 					}
 				}
-			endloop:
+			endLoop:
 
-				if (AnimationCheck(3, "MANUFACTURE") && !AnimationCheck(3, procType_wn))
+				//move items from inventory to warehouse
+				if (AnimationCheck(3, XorStringA("MANUFACTURE")) && !AnimationCheck(3, procType_wn))
 				{
-					g_t_InventoryToWarehouse(0, 2, inven_dump[2].m_ui32_item_count, *((uint32_t*)(g_kuip_PushPopItems)));
-					BDO::g_b_wait_check = true;
+					LuaExecutor(XorStringA("inventoryToWarehouse(2,") + std::to_string(inventoryInfo[2].m_ui32_item_count) + ')');
+					waitCheck = true;
 				}
-				else if (inven_dump[4].m_ui32_item_count > 0 && !BDO::g_b_wait_check)
+				else if (inventoryInfo[4].m_ui32_item_count > 0 && !waitCheck)
 				{
-					g_t_InventoryToWarehouse(0, 4, inven_dump[4].m_ui32_item_count, *((uint32_t*)(g_kuip_PushPopItems)));
-					BDO::g_b_wait_check = true;
+					LuaExecutor(XorStringA("inventoryToWarehouse(4,") + std::to_string(inventoryInfo[4].m_ui32_item_count) + ')');
+					waitCheck = true;
 				}
-				else if (inven_dump[3].m_ui32_item_count > 0 && !BDO::g_b_wait_check)
+				else if (inventoryInfo[3].m_ui32_item_count > 0 && !waitCheck)
 				{
-					g_t_InventoryToWarehouse(0, 3, inven_dump[3].m_ui32_item_count, *((uint32_t*)(g_kuip_PushPopItems)));
-					BDO::g_b_wait_check = true;
-				}
-
-				if (inven_dump[2].m_ui32_item_count < 20 && stor_dump[slotNo_w].m_ui32_item_count >= 10 && !BDO::g_b_wait_check)
-				{
-					g_t_WarehouseToInventory(slotNo_w, 10, *((uint32_t*)(g_kuip_PushPopItems))); //warehouse to inventory
-					BDO::g_b_wait_check = true;
+					LuaExecutor(XorStringA("inventoryToWarehouse(3,") + std::to_string(inventoryInfo[3].m_ui32_item_count) + ')');
+					waitCheck = true;
 				}
 
-				if (BDO::g_b_wait_check && TimerFunction(2000))
+				//move items from warehouse to inventory
+				if (slotNo_w >= storageInfo.size())
 				{
-					BDO::g_b_wait_check = false;
-					BDO::g_b_storage_check = false;
+					BDO::Manufacture::activation = false;
+					return;
 				}
 
-				std::string LuaCommand;
-				if (!AnimationCheck(3, "MANUFACTURE") && inven_dump[2].m_ui32_item_count != 0 && !BDO::g_b_is_manufacturing)
+				if (inventoryInfo[2].m_ui32_item_count < 20 && storageInfo[slotNo_w].m_ui32_item_count >= 10 && !waitCheck)
 				{
-					BDO::g_b_is_manufacturing = true;
+					LuaExecutor(XorStringA("warehouseToInventory(") + std::to_string(slotNo_w) + XorStringA(", 10)"));
+					waitCheck = true;
+				}
+
+				if (TimerFunction(2000) && waitCheck)
+				{
+					waitCheck = false;
+					storageCheck = false;
+				}
+
+				if (!AnimationCheck(3, XorStringA("MANUFACTURE")) && inventoryInfo[2].m_ui32_item_count != 0 && !ManufacturingCheck)
+				{
+					ManufacturingCheck = true;
 					switch (procType_w)
 					{
 					case 0:
@@ -868,452 +692,292 @@ public:
 					}
 				}
 
-				if (AnimationCheck(3, "MANUFACTURE"))
+				if (AnimationCheck(3, XorStringA("MANUFACTURE")))
 				{
-					BDO::g_b_is_manufacturing = false;
+					ManufacturingCheck = false;
 				}
 			}
 			else
 			{
-				BDO::g_b_auto_manufacture = false;
+				BDO::Manufacture::activation = false;
 				LuaExecutor(XorStringA("Proc_ShowMessage_Ack('<PAColor0xFFB69A80>Must be Nearby a warehouse<PAOldColor>')"));
 			}
 		}
 		else //reset if turned off
 		{
-			BDO::g_b_storage_check = false;
-			BDO::g_b_wait_check = false;
-			BDO::g_b_is_manufacturing = false;
-		}
-	}
-
-	void AutoSell()
-	{
-		//fetch inventory items
-		std::vector<InvenPipe>inven_dump;
-		inven_dump.reserve(m_ui8_maxinventory_slots);
-		inven_dump = DumpInventory(2);
-
-		//fetch market items
-		uint64_t ListOfItems_Start = *((uint64_t*)(g_kuip_MarketBase + 0x00));
-		uint64_t ListOfItems_End = *((uint64_t*)(g_kuip_MarketBase + 0x08));
-		uint32_t ListOfItems = ((uint32_t)((ListOfItems_End - ListOfItems_Start) / 0x08));
-
-		std::vector<MarketPipe>market_dump;
-		market_dump.reserve(ListOfItems);
-		market_dump = DumpMarketplace(2);
-
-		//recent price, current register count, item max register stack
-		//if registeration count == 0, list as max price
-
-		static uint64_t item_location;
-
-		for (uint32_t count = 0; count < ListOfItems; count++)
-		{
-			if (market_dump[count].m_ui32_market_item_index == BDO::g_i32_market_sell_item_id)
-			{
-				item_location = count;
-				break;
-			}
-		}
-
-		for (uint8_t count = 2; count < m_ui8_maxinventory_slots; count++) //inventory starts at 2
-		{
-			if (inven_dump[count].m_ui16_item_id == BDO::g_i32_market_sell_item_id)
-			{
-
-				if (inven_dump[count].m_ui32_item_count >= inven_dump[count].m_ui16_max_registerable_count)
-				{
-					if (BDO::g_i32_sell_type == 0)
-						g_t_SellItemsToMarketplace(BDOEnums::eInventory, inven_dump[count].m_ui8_slot, inven_dump[count].m_ui16_max_registerable_count, market_dump[item_location].m_ui64_min_price);
-					else if (BDO::g_i32_sell_type == 1)
-						g_t_SellItemsToMarketplace(BDOEnums::eInventory, inven_dump[count].m_ui8_slot, inven_dump[count].m_ui16_max_registerable_count, market_dump[item_location].m_ui64_max_price);
-					else if (BDO::g_i32_sell_type == 2)
-						g_t_SellItemsToMarketplace(BDOEnums::eInventory, inven_dump[count].m_ui8_slot, inven_dump[count].m_ui16_max_registerable_count, market_dump[item_location].m_ui64_recent_price);
-					else if (BDO::g_i32_sell_type == 3)
-						g_t_SellItemsToMarketplace(BDOEnums::eInventory, inven_dump[count].m_ui8_slot, inven_dump[count].m_ui16_max_registerable_count, BDO::g_i32_custom_price);
-				}
-				else if (inven_dump[count].m_ui32_item_count < inven_dump[count].m_ui16_max_registerable_count)
-				{
-					if (BDO::g_i32_sell_type == 0)
-						g_t_SellItemsToMarketplace(BDOEnums::eInventory, inven_dump[count].m_ui8_slot, inven_dump[count].m_ui32_item_count, market_dump[item_location].m_ui64_min_price);
-					else if (BDO::g_i32_sell_type == 1)
-						g_t_SellItemsToMarketplace(BDOEnums::eInventory, inven_dump[count].m_ui8_slot, inven_dump[count].m_ui32_item_count, market_dump[item_location].m_ui64_max_price);
-					else if (BDO::g_i32_sell_type == 2)
-						g_t_SellItemsToMarketplace(BDOEnums::eInventory, inven_dump[count].m_ui8_slot, inven_dump[count].m_ui32_item_count, market_dump[item_location].m_ui64_recent_price);
-					else if (BDO::g_i32_sell_type == 3)
-						g_t_SellItemsToMarketplace(BDOEnums::eInventory, inven_dump[count].m_ui8_slot, inven_dump[count].m_ui32_item_count, BDO::g_i32_custom_price);
-				}
-			}
-		}
-		BDO::g_b_auto_sell = false;
-	}
-
-	void RemoveDesertDebuff()
-	{
-		uint64_t l_ui64_active_buffs = *((uint64_t*)(m_ui64_local_player_address + g_ki32_ActiveBuffCount));
-		uint64_t l_ui64_active_buffs_list = *((uint64_t*)(m_ui64_local_player_address + g_ki32_ActiveBuffList));
-		uint64_t l_ui64_first_node = *((uint64_t*)(l_ui64_active_buffs_list));
-		uint64_t l_ui64_current_node = l_ui64_first_node;
-
-		static bool l_b_desert_debuff[3] = { false, false, false };
-		uint32_t l_i32_debuff_removers[2] = { 6656,  9306 }; //purified water, star anise tea
-
-		//fetch inventory items
-		std::vector<InvenPipe>inven_dump;
-		inven_dump.reserve(m_ui8_maxinventory_slots);
-		inven_dump = DumpInventory(2);
-		static auto last = std::chrono::high_resolution_clock::now();
-		auto now = std::chrono::high_resolution_clock::now();
-
-		if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last).count() > 1000) //check every 0.5secs, any higher it will be inaccurate
-		{
-			if (!l_b_desert_debuff[0])
-			{
-				for (uint64_t count = 0; count < l_ui64_active_buffs + 2; count++) //+2 for overhead
-				{
-					if (*((uint64_t*)(l_ui64_current_node + 0x30)) == 0x2F) //check if the node is valid 0x2F = debuff, 0x3F = buff
-					{
-						std::string animationName((char*)(*((uint64_t*)(l_ui64_current_node + 0x18))));
-						//cLog("reached: %s", animationName.c_str());
-						if (animationName.find("04_DeBuff/Sunstroke.dds") != std::string::npos)
-						{
-							l_b_desert_debuff[0] = true;
-							l_b_desert_debuff[1] = true;
-						}
-						else if (animationName.find("04_DeBuff/Cold.dds") != std::string::npos)
-						{
-							l_b_desert_debuff[0] = true;
-							l_b_desert_debuff[2] = true;
-						}
-					}
-
-					uint64_t l_ui64_next_node = *((uint64_t*)(l_ui64_current_node));
-					l_ui64_current_node = l_ui64_next_node;
-				}
-			}
-			else
-			{
-				for (uint8_t x = 2; x < m_ui8_maxinventory_slots; x++) //inventory starts at 2
-				{
-					if (l_b_desert_debuff[1] && inven_dump[x].m_ui16_item_id == l_i32_debuff_removers[0])
-					{
-						g_t_UseInventoryItem(0, inven_dump[x].m_ui8_slot);
-						l_b_desert_debuff[0] = false;
-						l_b_desert_debuff[1] = false;
-					}
-					else if (l_b_desert_debuff[2] && inven_dump[x].m_ui16_item_id == l_i32_debuff_removers[1])
-					{
-						g_t_UseInventoryItem(0, inven_dump[x].m_ui8_slot);
-						l_b_desert_debuff[0] = false;
-						l_b_desert_debuff[2] = false;
-					}
-				}
-			}
+			storageCheck = false;
+			waitCheck = false;
+			ManufacturingCheck = false;
 		}
 	}
 };
-class ESP
+
+ESP& ESP::GetInstance()
 {
-	uint64_t local_player_address;
-	HWND hWindow; //find window class name
-	RECT rect;
-	float screenWidth, screenHeight, readViewMatrix[4][4];
-	int oriPos0, oriPos1, desPos0, desPos1;
-	double oriScreen[2], desScreen[2];
-public:
-	ESP()
+	static ESP context;
+	return context;
+}
+void ESP::DrawESP()
+{
+	float& l_f_self_position_x = *((float*)(local_player_address + g_ki32_WorldPosition_Self[0]));
+	float& l_f_self_position_y = *((float*)(local_player_address + g_ki32_WorldPosition_Self[1]));
+	float& l_f_self_position_z = *((float*)(local_player_address + g_ki32_WorldPosition_Self[2]));
+
+	int matrix_counter = 0; //counter goes up by 4, to 60 || 0x0 -> 0x3C
+	for (int x = 0; x < 4; x++)
 	{
-		local_player_address = *((uint64_t*)g_kuip_LocalPlayer);
-		hWindow = FindWindowA("BlackDesertWindowClass", NULL);
-		GetClientRect(hWindow, &rect);
-		screenWidth = (float)(rect.right - rect.left);
-		screenHeight = (float)(rect.bottom - rect.top);
+		for (int y = 0; y < 4; y++)
+		{
+			readViewMatrix[y][x] = *((float*)(g_kuip_ViewMatrix + matrix_counter));
+			matrix_counter += 4;
+		}
 	}
-	void DrawESP()
+
+	//Get the Dot Products from the View Angles of the player
+	oriScreen[0] = readViewMatrix[0][0] * l_f_self_position_x + readViewMatrix[0][1] * l_f_self_position_y + readViewMatrix[0][2] * l_f_self_position_z + readViewMatrix[0][3];
+	oriScreen[1] = readViewMatrix[1][0] * l_f_self_position_x + readViewMatrix[1][1] * l_f_self_position_y + readViewMatrix[1][2] * l_f_self_position_z + readViewMatrix[1][3];
+	float w = (readViewMatrix[3][0] * l_f_self_position_x + readViewMatrix[3][1] * l_f_self_position_y + readViewMatrix[3][2] * l_f_self_position_z + readViewMatrix[3][3]);
+
+	//make sure the enemy is in front of the player. if not, return.
+	if (w < 0.01f)
 	{
-		float l_f_self_position_x = *((float*)(local_player_address + g_ki32_WorldPosition_Self[0]));
-		float l_f_self_position_y = *((float*)(local_player_address + g_ki32_WorldPosition_Self[1]));
-		float l_f_self_position_z = *((float*)(local_player_address + g_ki32_WorldPosition_Self[2]));
+		return;
+	}
 
-		int matrix_counter = 0; //counter goes up by 4, to 60 || 0x0 -> 0x3C
-		for (int x = 0; x < 4; x++)
+	float Pinvw = 1.0f / w;
+	oriScreen[0] *= Pinvw;
+	oriScreen[1] *= Pinvw;
+
+	//calculate the center of the screen
+	float x = screenWidth / 2;
+	float y = screenHeight / 2;
+
+	//calculates the screen coordinates
+	x += 0.5f * oriScreen[0] * screenWidth + 0.5f;
+	y -= 0.5f * oriScreen[1] * screenHeight + 0.5f;
+
+	oriScreen[0] = x + rect.left;
+	oriScreen[1] = y + rect.top;
+
+	oriPos0 = oriScreen[0];
+	oriPos1 = oriScreen[1];
+
+	uint64_t& actorListFirstEntry = *((uint64_t*)(g_kuip_ActorList));
+	uint32_t& actorListCount = *((uint32_t*)(g_kuip_ActorList + 0x08));
+	uint64_t& firstEntry = ((uint64_t)(actorListFirstEntry));
+	uint64_t currentEntry = (*(uint64_t*)(firstEntry));
+
+	uint8_t getLevel = 99;
+	float l_f_target_position_x, l_f_target_position_y, l_f_target_position_z;
+	std::vector<ActorListManager> actorListInfo;
+	std::vector<ActorListESP> actorListPositions;
+	while (((uint64_t)(currentEntry)) != ((uint64_t)(firstEntry)))
+	{
+		uint64_t& actorData_data = *((uint64_t*)(currentEntry + 0x18));
+
+		actorListInfo.emplace_back(((uint64_t)(actorData_data)));
+		currentEntry = *((uint64_t*)(currentEntry));
+	}
+	for (const auto& actors : actorListInfo)
+	{
+		uint8_t& actorType_check = *((uint8_t*)(actors.m_ui64_address + g_ki32_ActorType));
+		if (actorType_check != BDO::ESP::targetType && BDO::ESP::targetType != 10)
+			continue;
+
+		//std::wstring_view l_ws_name(*((std::wstring_view*)(actors.m_ui64_address + g_ki32_CharacterName)));
+		//if (l_ws_name.find(L" Wagon") != std::wstring_view::npos || l_ws_name.find(L" Ship") != std::wstring_view::npos || l_ws_name.find(L" Shuttle") != std::wstring_view::npos)
+		//	continue;
+		//std::wstring testname = std::wstring(l_ws_name.data());
+		//std::string l_s_name(testname.begin(), testname.end());
+		//cLog("%s", l_s_name.c_str());
+
+		//get actor name
+		const wchar_t* l_wcpName = (*((const wchar_t**)(actors.m_ui64_address + g_ki32_CharacterName)));
+		if (wcsstr(l_wcpName, XorStringW(L" Wagon")) != 0 || wcsstr(l_wcpName, XorStringW(L" Ship")) != 0 || wcsstr(l_wcpName, XorStringW(L" Shuttle")) != 0) { continue; }
+		char l_cName[33];
+		wcstombs(l_cName, l_wcpName, sizeof(l_cName));
+
+		if (actorType_check <= 3)
 		{
-			for (int y = 0; y < 4; y++)
+			bool& dead_actor = *((bool*)(actors.m_ui64_address + g_ki32_DeadActor));
+			if (dead_actor)
+				continue;
+
+			//get player level
+			if (actorType_check == 0)
+				getLevel = *((uint8_t*)(actors.m_ui64_address + g_ki32_Level));
+
+			l_f_target_position_x = *((float*)(*(((uint64_t*)((*((uint64_t*)(actors.m_ui64_address + g_ki32_CharacterController))) + g_ki32_characterLocalPlayer))) + g_ki32_WorldPosition_Target[0]));
+			l_f_target_position_y = *((float*)(*(((uint64_t*)(*(((uint64_t*)(actors.m_ui64_address + g_ki32_CharacterController))) + g_ki32_characterLocalPlayer))) + g_ki32_WorldPosition_Target[1]));
+			l_f_target_position_z = *((float*)(*(((uint64_t*)(*(((uint64_t*)(actors.m_ui64_address + g_ki32_CharacterController))) + g_ki32_characterLocalPlayer))) + g_ki32_WorldPosition_Target[2]));
+		}
+		else if (actorType_check == 6)
+		{
+			l_f_target_position_x = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Collectables[0]));
+			l_f_target_position_y = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Collectables[1]));
+			l_f_target_position_z = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Collectables[2]));
+		}
+		else
+		{
+			l_f_target_position_x = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[0]));
+			l_f_target_position_y = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[1]));
+			l_f_target_position_z = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[2]));
+		}
+		//get actor id
+		uint16_t& actorID = *((uint16_t*)(actors.m_ui64_address + g_ki32_ActorId));
+
+		float pX = l_f_self_position_x - l_f_target_position_x;
+		float pY = l_f_self_position_y - l_f_target_position_y;
+		float pZ = l_f_self_position_z - l_f_target_position_z;
+		uint32_t target_distance = sqrt(pX * pX + pY * pY + pZ * pZ);
+
+		if (BDO::ESP::targetType == 10 && g_um_esp_actor_id.size() != 0)
+			for (const auto& targetType : g_um_esp_actor_id)
 			{
-				readViewMatrix[y][x] = *((float*)(g_kuip_ViewMatrix + matrix_counter));
-				matrix_counter += 4;
+				if (l_cName == targetType.first || actorID == targetType.second)
+					actorListPositions.emplace_back(l_cName, actorID, getLevel, l_f_target_position_x, l_f_target_position_y, l_f_target_position_z, target_distance);
 			}
-		}
+		else if (BDO::ESP::targetType != 10)
+			actorListPositions.emplace_back(l_cName, actorID, getLevel, l_f_target_position_x, l_f_target_position_y, l_f_target_position_z, target_distance);
+	}
+	int maxdraw = 0;
+	for (const auto& render_target : actorListPositions)
+	{
+		if (maxdraw > 50) //draw max of 50 targets
+			break;
+		float Tw = 0.0f;
+		desScreen[0] = readViewMatrix[0][0] * render_target.m_f_position_x + readViewMatrix[0][1] * render_target.m_f_position_y + readViewMatrix[0][2] * render_target.m_f_position_z + readViewMatrix[0][3];
+		desScreen[1] = readViewMatrix[1][0] * render_target.m_f_position_x + readViewMatrix[1][1] * render_target.m_f_position_y + readViewMatrix[1][2] * render_target.m_f_position_z + readViewMatrix[1][3];
+		Tw = readViewMatrix[3][0] * render_target.m_f_position_x + readViewMatrix[3][1] * render_target.m_f_position_y + readViewMatrix[3][2] * render_target.m_f_position_z + readViewMatrix[3][3];
 
-		float w = 0.0f;
-		oriScreen[0] = readViewMatrix[0][0] * l_f_self_position_x + readViewMatrix[0][1] * l_f_self_position_y + readViewMatrix[0][2] * l_f_self_position_z + readViewMatrix[0][3];
-		oriScreen[1] = readViewMatrix[1][0] * l_f_self_position_x + readViewMatrix[1][1] * l_f_self_position_y + readViewMatrix[1][2] * l_f_self_position_z + readViewMatrix[1][3];
-		w = (float)(readViewMatrix[3][0] * l_f_self_position_x + readViewMatrix[3][1] * l_f_self_position_y + readViewMatrix[3][2] * l_f_self_position_z + readViewMatrix[3][3]);
+		if (Tw < 0.01f)
+			continue;
 
-		if (w < 0.01f)
+		float Tinvw = 1.0f / Tw;
+		desScreen[0] *= Tinvw;
+		desScreen[1] *= Tinvw;
+
+		float Tx = (float)(screenWidth / 2);
+		float Ty = (float)(screenHeight / 2);
+
+		Tx += (float)(0.5 * desScreen[0] * screenWidth + 0.5);
+		Ty -= (float)(0.5 * desScreen[1] * screenHeight + 0.5);
+
+		desScreen[0] = Tx + rect.left;
+		desScreen[1] = Ty + rect.top;
+
+		desPos0 = desScreen[0];
+		desPos1 = desScreen[1];
+
+		if (BDO::ESP::drawESP)
 		{
-			return;
+			if (BDO::ESP::drawESP_line)
+				rDrawLine(Vector2(oriPos0, oriPos1), Vector2(desPos0, desPos1), ImColor(25, 255, 255, 255), true);
+			if (BDO::ESP::drawESP_circle)
+				rDrawCircle(Vector2(desPos0, desPos1), 5.0f, ImColor(0, 25, 255, 255), 1, false);
+			if (BDO::ESP::drawESP_name)
+				rDrawText(ImGui::GetFont(), XorStringA("NAME: ") + render_target.m_s_name, ImVec2(desPos0, desPos1 += 5.0f), 20.0f, ImColor(255, 0, 0, 255), true);
+			if (BDO::ESP::drawESP_id)
+				rDrawText(ImGui::GetFont(), XorStringA("ID: ") + std::to_string(render_target.m_ui16_id), ImVec2(desPos0, desPos1 += 20.0f), 15.0f, ImColor(255, 255, 255, 255), true);
+			if (BDO::ESP::drawESP_level)
+				rDrawText(ImGui::GetFont(), XorStringA("LEVEL: ") + std::to_string(render_target.m_ui8_level), ImVec2(desPos0, desPos1 += 15.0f), 15.0f, ImColor(255, 255, 255, 255), true);
+			if (BDO::ESP::drawESP_distance)
+				rDrawText(ImGui::GetFont(), XorStringA("DISTANCE: ") + std::to_string(render_target.m_i32_distance), ImVec2(desPos0, desPos1 += 15.0f), 15.0f, ImColor(255, 255, 255, 255), true);
 		}
+		maxdraw++;
+	}
+}
+void ESP::DrawOnWorldMap()
+{
+	uint64_t& Base = *((uint64_t*)(g_kuip_Base));
+	uint64_t& Baseptr1 = *((uint64_t*)(Base + 0x18));
+	uint64_t& Baseptr2 = *((uint64_t*)(Baseptr1 + 0x178)); //was 0x160 -> 168
+	uint64_t worldmapviewmatrix = Baseptr2 + 0x6F4; //was 0x5F4
+	uint32_t& isworldmapopened = *((uint32_t*)(Baseptr2 + 0x800)); //was 0x700
 
-		float Pinvw = 1.0f / w;
-		oriScreen[0] *= Pinvw;
-		oriScreen[1] *= Pinvw;
-
-		float x = (float)(screenWidth / 2);
-		float y = (float)(screenHeight / 2);
-
-		x += (float)(0.5 * oriScreen[0] * screenWidth + 0.5);
-		y -= (float)(0.5 * oriScreen[1] * screenHeight + 0.5);
-
-		oriScreen[0] = x + rect.left;
-		oriScreen[1] = y + rect.top;
-
-		oriPos0 = (int)oriScreen[0];
-		oriPos1 = (int)oriScreen[1];
-
-		uint64_t actorListFirstEntry = *((uint64_t*)(g_kuip_ActorList));
-		uint32_t actorListCount = *((uint32_t*)(g_kuip_ActorList + 0x08));
-		uint64_t firstEntry = ((uint64_t)(actorListFirstEntry));
+	if (isworldmapopened != 0)
+	{
+		uint64_t& actorListFirstEntry = *((uint64_t*)(g_kuip_ActorList));
+		uint32_t& actorListCount = *((uint32_t*)(g_kuip_ActorList + 0x08));
+		uint64_t& firstEntry = ((uint64_t)(actorListFirstEntry));
 		uint64_t currentEntry = (*(uint64_t*)(firstEntry));
 
-		uint8_t getLevel;
-		float l_f_target_position_x, l_f_target_position_y, l_f_target_position_z;
-		std::vector<ActorListManager> actorListInfo; //in actordata.h
-		std::vector<ActorListESP> actorListPositions; //in actordata.h
-		if (TimerFunction(BDO::g_i32_esp_draw_interval))
-		{
-			while (((uint64_t)(currentEntry)) != ((uint64_t)(firstEntry)))
-			{
-				uint64_t actorData_data = *((uint64_t*)(currentEntry + 0x18));
-
-				actorListInfo.emplace_back(((uint64_t)(actorData_data)));
-				currentEntry = *((uint64_t*)(currentEntry));
-			}
-			for (const auto& actors: actorListInfo)
-			{
-				//get character name
-				std::wstring& l_ws_name = std::wstring((const wchar_t*)(*((uint64_t*)(actors.m_ui64_address + g_ki32_CharacterName))));
-				std::string l_s_name(l_ws_name.begin(), l_ws_name.end());
-
-				uint8_t& actorType_check = *((uint8_t*)(actors.m_ui64_address + g_ki32_ActorType));
-				bool& dead_actor = *((bool*)(actors.m_ui64_address + g_ki32_DeadActor));
-
-				//get actor id
-				uint16_t& actorID = *((uint16_t*)(actors.m_ui64_address + g_ki32_ActorId));
-
-				//get level
-				if (actorType_check == 0)
-					getLevel = *((uint8_t*)(actors.m_ui64_address + g_ki32_Level));
-				else
-					getLevel = 0;
-
-				//get distance
-				if (actorType_check <= 3)
-				{
-					l_f_target_position_x = *((float*)(*(((uint64_t*)((*((uint64_t*)(actors.m_ui64_address + g_ki32_CharacterController))) + g_ki32_characterLocalPlayer))) + g_ki32_WorldPosition_Target[0]));
-					l_f_target_position_y = *((float*)(*(((uint64_t*)(*(((uint64_t*)(actors.m_ui64_address + g_ki32_CharacterController))) + g_ki32_characterLocalPlayer))) + g_ki32_WorldPosition_Target[1]));
-					l_f_target_position_z = *((float*)(*(((uint64_t*)(*(((uint64_t*)(actors.m_ui64_address + g_ki32_CharacterController))) + g_ki32_characterLocalPlayer))) + g_ki32_WorldPosition_Target[2]));
-				}
-				else if (actorType_check == 6)
-				{
-					l_f_target_position_x = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Collectables[0]));
-					l_f_target_position_y = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Collectables[1]));
-					l_f_target_position_z = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Collectables[2]));
-				}
-				else
-				{
-					l_f_target_position_x = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[0]));
-					l_f_target_position_y = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[1]));
-					l_f_target_position_z = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[2]));
-				}
-
-				float pX = l_f_self_position_x - l_f_target_position_x;
-				float pY = l_f_self_position_y - l_f_target_position_y;
-				float pZ = l_f_self_position_z - l_f_target_position_z;
-				uint32_t target_distance = sqrt(pX * pX + pY * pY + pZ * pZ);
-
-				if (BDO::g_i32_esp_target == 10 && g_um_esp_actor_id.size() != 0)
-					for (const auto& g_i32_esp_target : g_um_esp_actor_id)
-					{
-						if (dead_actor == false && l_s_name == g_i32_esp_target.first || actorID == g_i32_esp_target.second)
-							actorListPositions.emplace_back(l_s_name, actorID, getLevel, l_f_target_position_x, l_f_target_position_y, l_f_target_position_z, target_distance);
-					}
-				else if (BDO::g_i32_esp_target != 10 && actorType_check == BDO::g_i32_esp_target && dead_actor == false)
-					actorListPositions.emplace_back(l_s_name, actorID, getLevel, l_f_target_position_x, l_f_target_position_y, l_f_target_position_z, target_distance);
-			}
-			int maxdraw = 0;
-			for (const auto& render_target : actorListPositions)
-			{
-				if (maxdraw > 30) //draw max of 30 targets
-					break;
-				float Tw = 0.0f;
-				desScreen[0] = readViewMatrix[0][0] * render_target.m_f_position_x + readViewMatrix[0][1] * render_target.m_f_position_y + readViewMatrix[0][2] * render_target.m_f_position_z + readViewMatrix[0][3];
-				desScreen[1] = readViewMatrix[1][0] * render_target.m_f_position_x + readViewMatrix[1][1] * render_target.m_f_position_y + readViewMatrix[1][2] * render_target.m_f_position_z + readViewMatrix[1][3];
-				Tw = (float)(readViewMatrix[3][0] * render_target.m_f_position_x + readViewMatrix[3][1] * render_target.m_f_position_y + readViewMatrix[3][2] * render_target.m_f_position_z + readViewMatrix[3][3]);
-
-				if (Tw < 0.01f)
-					continue;
-
-				float Tinvw = 1.0f / Tw;
-				desScreen[0] *= Tinvw;
-				desScreen[1] *= Tinvw;
-
-				float Tx = (float)(screenWidth / 2);
-				float Ty = (float)(screenHeight / 2);
-
-				Tx += (float)(0.5 * desScreen[0] * screenWidth + 0.5);
-				Ty -= (float)(0.5 * desScreen[1] * screenHeight + 0.5);
-
-				desScreen[0] = Tx + rect.left;
-				desScreen[1] = Ty + rect.top;
-
-				desPos0 = (int)desScreen[0];
-				desPos1 = (int)desScreen[1];
-
-				if (BDO::g_b_show_esp)
-				{
-					if (BDO::g_b_show_esp_line)
-						rDrawLine(Vector2(oriPos0, oriPos1), Vector2(desPos0, desPos1), ImColor(25, 255, 255, 255), 1);
-					if (BDO::g_b_show_esp_circle)
-						rDrawCircle(Vector2(desPos0, desPos1), 10, ImColor(0, 25, 255, 255), 1, false);
-					if (BDO::g_b_show_esp_name)
-						rDrawText(ImGui::GetFont(), "Name: " + render_target.m_s_name, ImVec2(desPos0, desPos1), 20, ImColor(255, 0, 0, 255), 1);
-					if (BDO::g_b_show_esp_id)
-						rDrawText(ImGui::GetFont(), "ID: " + std::to_string(render_target.m_ui16_id), ImVec2(desPos0, desPos1 + 20), 15, ImColor(255, 255, 255, 255), 1);
-					if (BDO::g_b_show_esp_level)
-						rDrawText(ImGui::GetFont(), "Level: " + std::to_string(render_target.m_ui8_level), ImVec2(desPos0, desPos1 + 35), 15, ImColor(255, 255, 255, 255), 1);
-					if (BDO::g_b_show_esp_distance)
-						rDrawText(ImGui::GetFont(), "Distance: " + std::to_string(render_target.m_i32_distance), ImVec2(desPos0, desPos1 + 50), 15, ImColor(255, 255, 255, 255), 1);
-				}
-				maxdraw++;
-			}
-		}
-	}
-	void DrawOnWorldMap()
-	{
-		uint64_t Base = *((uint64_t*)(g_kuip_Base));
-		uint64_t Baseptr1 = *((uint64_t*)(Base + 0x18));
-		uint64_t Baseptr2 = *((uint64_t*)(Baseptr1 + 0x168)); //was 0x160
-		uint64_t worldmapviewmatrix = (Baseptr2 + 0x6F4); //was 0x5F4
-		uint32_t isworldmapopened = *((uint32_t*)(Baseptr2 + 0x800)); //was 0x700
-
-		if (isworldmapopened != 0)
-		{
-			uint64_t actorListFirstEntry = *((uint64_t*)(g_kuip_ActorList));
-			uint32_t actorListCount = *((uint32_t*)(g_kuip_ActorList + 0x08));
-			uint64_t firstEntry = ((uint64_t)(actorListFirstEntry));
-			uint64_t currentEntry = (*(uint64_t*)(firstEntry));
-
-			int matrixCounter = 0; //counter goes up by 4, to 60 || 0x0 -> 0x3C
-			for (int x = 0; x < 4; x++)
-			{
-				for (int y = 0; y < 4; y++)
-				{
-					readViewMatrix[y][x] = *((float*)(worldmapviewmatrix + matrixCounter));
-					matrixCounter += 4;
-				}
-			}
-
-			float getPosX, getPosY, getPosZ;
-			std::vector<ActorListManager> actorListInfo; //in actordata.h
-			std::vector<ActorListESP> actorListPositions; //in actordata.h
-
-			while (((uint64_t)(currentEntry)) != ((uint64_t)(firstEntry)))
-			{
-				uint64_t actorData_data = *((uint64_t*)(currentEntry + 0x18));
-
-				actorListInfo.emplace_back(((uint64_t)(actorData_data)));
-				currentEntry = *((uint64_t*)(currentEntry));
-			}
-			for (const auto& actors : actorListInfo)
-			{
-				uint8_t actorType_check = *((uint8_t*)(actors.m_ui64_address + g_ki32_ActorType));
-
-				//get actor id
-				uint16_t actorID = *((uint16_t*)(actors.m_ui64_address + g_ki32_ActorId));
-
-				//get distance
-				if (actorType_check <= 3)
-				{
-					getPosX = *((float*)(*(((uint64_t*)((*((uint64_t*)(actors.m_ui64_address + g_ki32_CharacterController))) + g_ki32_characterLocalPlayer))) + g_ki32_WorldPosition_Target[0]));
-					getPosY = *((float*)(*(((uint64_t*)(*(((uint64_t*)(actors.m_ui64_address + g_ki32_CharacterController))) + g_ki32_characterLocalPlayer))) + g_ki32_WorldPosition_Target[1]));
-					getPosZ = *((float*)(*(((uint64_t*)(*(((uint64_t*)(actors.m_ui64_address + g_ki32_CharacterController))) + g_ki32_characterLocalPlayer))) + g_ki32_WorldPosition_Target[2]));
-				}
-				else if (actorType_check == 6)
-				{
-					getPosX = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Collectables[0]));
-					getPosY = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Collectables[1]));
-					getPosZ = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Collectables[2]));
-				}
-				else
-				{
-					getPosX = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[0]));
-					getPosY = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[1]));
-					getPosZ = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[2]));
-				}
-
-				if (BDO::g_i32_esp_target == 10 && g_um_esp_actor_id.size() != 0)
-					for (const auto& g_i32_esp_target : g_um_esp_actor_id)
-					{
-						if (actorID == g_i32_esp_target.second)
-							actorListPositions.emplace_back("", actorID, 0, getPosX, getPosY, getPosZ, 0);
-					}
-				else if (BDO::g_i32_esp_target != 10 && actorType_check == BDO::g_i32_esp_target)
-					actorListPositions.emplace_back("", actorID, 0, getPosX, getPosY, getPosZ, 0);
-			}
-			int maxdraw = 0;
-			for (const auto& render_target : actorListPositions)
-			{
-				if (maxdraw > 30) //draw max of 30 targets
-					break;
-				float Tw = 0.0f;
-				desScreen[0] = readViewMatrix[0][0] * render_target.m_f_position_x + readViewMatrix[0][1] * render_target.m_f_position_y + readViewMatrix[0][2] * render_target.m_f_position_z + readViewMatrix[0][3];
-				desScreen[1] = readViewMatrix[1][0] * render_target.m_f_position_x + readViewMatrix[1][1] * render_target.m_f_position_y + readViewMatrix[1][2] * render_target.m_f_position_z + readViewMatrix[1][3];
-				Tw = (float)(readViewMatrix[3][0] * render_target.m_f_position_x + readViewMatrix[3][1] * render_target.m_f_position_y + readViewMatrix[3][2] * render_target.m_f_position_z + readViewMatrix[3][3]);
-
-				if (Tw < 0.01f)
-					continue;
-
-				float Tinvw = 1.0f / Tw;
-				desScreen[0] *= Tinvw;
-				desScreen[1] *= Tinvw;
-
-				float Tx = (float)(screenWidth / 2);
-				float Ty = (float)(screenHeight / 2);
-
-				Tx += (float)(0.5 * desScreen[0] * screenWidth + 0.5);
-				Ty -= (float)(0.5 * desScreen[1] * screenHeight + 0.5);
-
-				desScreen[0] = Tx + rect.left;
-				desScreen[1] = Ty + rect.top;
-
-				desPos0 = (int)desScreen[0];
-				desPos1 = (int)desScreen[1];
-
-				rDrawCircle(Vector2(desPos0, desPos1), 3, ImColor(255, 0, 0, 255), 1, true);
-				maxdraw++;
-			}
-		}
-	}
-	void DrawWayPoints()
-	{
 		int matrixCounter = 0; //counter goes up by 4, to 60 || 0x0 -> 0x3C
 		for (int x = 0; x < 4; x++)
 		{
 			for (int y = 0; y < 4; y++)
 			{
-				readViewMatrix[y][x] = *((float*)(g_kuip_ViewMatrix + matrixCounter));
+				readViewMatrix[y][x] = *((float*)(worldmapviewmatrix + matrixCounter));
 				matrixCounter += 4;
 			}
 		}
 
-		for (auto& render_target : g_v_waypoints_file)
+		float getPosX, getPosY, getPosZ;
+		std::vector<ActorListManager> actorListInfo; //in actordata.h
+		std::vector<ActorListESP> actorListPositions; //in actordata.h
+
+		while (((uint64_t)(currentEntry)) != ((uint64_t)(firstEntry)))
 		{
+			uint64_t& actorData_data = *((uint64_t*)(currentEntry + 0x18));
+
+			actorListInfo.emplace_back(((uint64_t)(actorData_data)));
+			currentEntry = *((uint64_t*)(currentEntry));
+		}
+		for (const auto& actors : actorListInfo)
+		{
+			uint8_t& actorType_check = *((uint8_t*)(actors.m_ui64_address + g_ki32_ActorType));
+			if (actorType_check != BDO::ESP::targetType && BDO::ESP::targetType != 10)
+				continue;
+
+			//get actor name
+			const wchar_t* l_wcpName = (*((const wchar_t**)(actors.m_ui64_address + g_ki32_CharacterName)));
+			if (wcsstr(l_wcpName, XorStringW(L" Wagon")) != 0 || wcsstr(l_wcpName, XorStringW(L" Ship")) != 0 || wcsstr(l_wcpName, XorStringW(L" Shuttle")) != 0) { continue; }
+			char l_cName[33]; //max of 32 characters, include '\0' terminator
+			wcstombs(l_cName, l_wcpName, sizeof(l_cName));
+
+			if (actorType_check <= 3)
+			{
+				bool& dead_actor = *((bool*)(actors.m_ui64_address + g_ki32_DeadActor));
+				if (dead_actor)
+					continue;
+
+				getPosX = *((float*)(*(((uint64_t*)((*((uint64_t*)(actors.m_ui64_address + g_ki32_CharacterController))) + g_ki32_characterLocalPlayer))) + g_ki32_WorldPosition_Target[0]));
+				getPosY = *((float*)(*(((uint64_t*)(*(((uint64_t*)(actors.m_ui64_address + g_ki32_CharacterController))) + g_ki32_characterLocalPlayer))) + g_ki32_WorldPosition_Target[1]));
+				getPosZ = *((float*)(*(((uint64_t*)(*(((uint64_t*)(actors.m_ui64_address + g_ki32_CharacterController))) + g_ki32_characterLocalPlayer))) + g_ki32_WorldPosition_Target[2]));
+			}
+			else if (actorType_check == 6)
+			{
+				getPosX = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Collectables[0]));
+				getPosY = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Collectables[1]));
+				getPosZ = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Collectables[2]));
+			}
+			else
+			{
+				getPosX = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[0]));
+				getPosY = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[1]));
+				getPosZ = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[2]));
+			}
+			//get actor id
+			uint16_t& actorID = *((uint16_t*)(actors.m_ui64_address + g_ki32_ActorId));
+
+			if (BDO::ESP::targetType == 10 && g_um_esp_actor_id.size() != 0)
+				for (const auto& targetType : g_um_esp_actor_id)
+				{
+					if (l_cName == targetType.first || actorID == targetType.second)
+						actorListPositions.emplace_back("", actorID, 0, getPosX, getPosY, getPosZ, 0);
+				}
+			else if (BDO::ESP::targetType != 10)
+				actorListPositions.emplace_back("", actorID, 0, getPosX, getPosY, getPosZ, 0);
+		}
+		int maxdraw = 0;
+		for (const auto& render_target : actorListPositions)
+		{
+			if (maxdraw > 50) //draw max of 50 targets
+				break;
 			float Tw = 0.0f;
-			desScreen[0] = readViewMatrix[0][0] * render_target.m_f_x + readViewMatrix[0][1] * render_target.m_f_y + readViewMatrix[0][2] * render_target.m_f_z + readViewMatrix[0][3];
-			desScreen[1] = readViewMatrix[1][0] * render_target.m_f_x + readViewMatrix[1][1] * render_target.m_f_y + readViewMatrix[1][2] * render_target.m_f_z + readViewMatrix[1][3];
-			Tw = (float)(readViewMatrix[3][0] * render_target.m_f_x + readViewMatrix[3][1] * render_target.m_f_y + readViewMatrix[3][2] * render_target.m_f_z + readViewMatrix[3][3]);
+			desScreen[0] = readViewMatrix[0][0] * render_target.m_f_position_x + readViewMatrix[0][1] * render_target.m_f_position_y + readViewMatrix[0][2] * render_target.m_f_position_z + readViewMatrix[0][3];
+			desScreen[1] = readViewMatrix[1][0] * render_target.m_f_position_x + readViewMatrix[1][1] * render_target.m_f_position_y + readViewMatrix[1][2] * render_target.m_f_position_z + readViewMatrix[1][3];
+			Tw = readViewMatrix[3][0] * render_target.m_f_position_x + readViewMatrix[3][1] * render_target.m_f_position_y + readViewMatrix[3][2] * render_target.m_f_position_z + readViewMatrix[3][3];
 
 			if (Tw < 0.01f)
 				continue;
@@ -1322,33 +986,71 @@ public:
 			desScreen[0] *= Tinvw;
 			desScreen[1] *= Tinvw;
 
-			float Tx = (float)(screenWidth / 2);
-			float Ty = (float)(screenHeight / 2);
+			float Tx = screenWidth / 2;
+			float Ty = screenHeight / 2;
 
-			Tx += (float)(0.5 * desScreen[0] * screenWidth + 0.5);
-			Ty -= (float)(0.5 * desScreen[1] * screenHeight + 0.5);
+			Tx += 0.5 * desScreen[0] * screenWidth + 0.5;
+			Ty -= 0.5 * desScreen[1] * screenHeight + 0.5;
 
 			desScreen[0] = Tx + rect.left;
 			desScreen[1] = Ty + rect.top;
 
-			desPos0 = (int)desScreen[0];
-			desPos1 = (int)desScreen[1];
+			desPos0 = desScreen[0];
+			desPos1 = desScreen[1];
 
 			rDrawCircle(Vector2(desPos0, desPos1), 3, ImColor(255, 0, 0, 255), 1, true);
+			maxdraw++;
 		}
 	}
-};
-
-inline bool PlayersDetection(bool check)
+}
+void ESP::DrawWayPoints()
 {
-	if (check) //overwrite safety check
-		return false;
+	int matrixCounter = 0; //counter goes up by 4, to 60 || 0x0 -> 0x3C
+	for (int x = 0; x < 4; x++)
+	{
+		for (int y = 0; y < 4; y++)
+		{
+			readViewMatrix[y][x] = *((float*)(g_kuip_ViewMatrix + matrixCounter));
+			matrixCounter += 4;
+		}
+	}
 
-	uint8_t player_check = 0;
-	uint64_t local_player_address = *((uint64_t*)g_kuip_LocalPlayer);
+	for (auto& render_target : g_v_waypoints_file)
+	{
+		float Tw = 0.0f;
+		desScreen[0] = readViewMatrix[0][0] * render_target.m_f_x + readViewMatrix[0][1] * render_target.m_f_y + readViewMatrix[0][2] * render_target.m_f_z + readViewMatrix[0][3];
+		desScreen[1] = readViewMatrix[1][0] * render_target.m_f_x + readViewMatrix[1][1] * render_target.m_f_y + readViewMatrix[1][2] * render_target.m_f_z + readViewMatrix[1][3];
+		Tw = (float)(readViewMatrix[3][0] * render_target.m_f_x + readViewMatrix[3][1] * render_target.m_f_y + readViewMatrix[3][2] * render_target.m_f_z + readViewMatrix[3][3]);
 
-	uint64_t actorListFirstEntry = *((uint64_t*)(g_kuip_ActorList));
-	uint32_t actorListCount = *((uint32_t*)(g_kuip_ActorList + 0x08));
+		if (Tw < 0.01f)
+			continue;
+
+		float Tinvw = 1.0f / Tw;
+		desScreen[0] *= Tinvw;
+		desScreen[1] *= Tinvw;
+
+		float Tx = (float)(screenWidth / 2);
+		float Ty = (float)(screenHeight / 2);
+
+		Tx += (float)(0.5 * desScreen[0] * screenWidth + 0.5);
+		Ty -= (float)(0.5 * desScreen[1] * screenHeight + 0.5);
+
+		desScreen[0] = Tx + rect.left;
+		desScreen[1] = Ty + rect.top;
+
+		desPos0 = (int)desScreen[0];
+		desPos1 = (int)desScreen[1];
+
+		rDrawCircle(Vector2(desPos0, desPos1), 3, ImColor(255, 0, 0, 255), 1, true);
+	}
+}
+
+inline bool ActorsDetection(const bool& overwrite_safety_check)
+{
+	uint64_t& local_player_address = *((uint64_t*)g_kuip_LocalPlayer);
+
+	uint64_t& actorListFirstEntry = *((uint64_t*)(g_kuip_ActorList));
+	uint32_t& actorListCount = *((uint32_t*)(g_kuip_ActorList + 0x08));
 	uint64_t currentEntry = *((uint64_t*)(actorListFirstEntry));
 
 	std::vector<ActorListManager> actorListInfo;
@@ -1363,32 +1065,49 @@ inline bool PlayersDetection(bool check)
 	{
 		uint8_t& actorType_check = *((uint8_t*)(actors.m_ui64_address + g_ki32_ActorType));
 
-		if (actorType_check == BDOEnums::ActorType_Deadbody)
+		//player detection
+		if (actorType_check == BDOEnums::ActorType_Player && !overwrite_safety_check)
 		{
-			//deadbody distance = deadbody - self
-			float deadbody_distance = sqrt(
+			uint64_t& l_ui64_target_actor_name = *((uint64_t*)(actors.m_ui64_address + g_ki32_CharacterName));
+			uint64_t& l_ui64_self_player_name = *((uint64_t*)(local_player_address + g_ki32_CharacterName));
+
+			if (l_ui64_target_actor_name != l_ui64_self_player_name)
+			{
+				if(BDO::Fishing::activation)
+				fLog(XorStringA("%lld"), l_ui64_target_actor_name);
+
+				return true;
+			}
+		}
+		else if (actorType_check == BDOEnums::ActorType_Deadbody)//loot dead bodies
+		{
+			bool& actorHasBeenLooted = *((bool*)(actors.m_ui64_address + g_ki32_actorHasBeenLooted)); //false means yes (I know -_-)
+
+			//target actor distance = target.pos - self.pos
+			float target_actor_distance = sqrt(
 				(*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[0])) - *((float*)(local_player_address + g_ki32_WorldPosition_Self[0]))) * (*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[0])) - *((float*)(local_player_address + g_ki32_WorldPosition_Self[0]))) +
+				//(*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[1])) - *((float*)(local_player_address + g_ki32_WorldPosition_Self[1]))) * (*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[1])) - *((float*)(local_player_address + g_ki32_WorldPosition_Self[1]))) +
 				(*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[2])) - *((float*)(local_player_address + g_ki32_WorldPosition_Self[2]))) * (*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[2])) - *((float*)(local_player_address + g_ki32_WorldPosition_Self[2]))));
 
-
-			if (deadbody_distance <= 300.0f && !*((bool*)(actors.m_ui64_address + g_ki32_actorHasLoot)))
+			if (!actorHasBeenLooted && target_actor_distance <= 350.0f)
 				g_t_RequestDroppedItems(*((uint64_t*)g_kuip_LocalPlayer), actors.m_ui64_address);
-		}
-		else if (actorType_check == BDOEnums::ActorType_Player)
-		{
-			//std::wstring& l_ws_name = std::wstring((const wchar_t*)(*((uint64_t*)(actors.m_ui64_address + g_ki32_CharacterName))));
-			//if(l_ws_name != L"~!@#$") //Dissimulate, FOTMPlayer
-				++player_check;
 		}
 	}
 
-	return player_check > 1;
+	return false;
 }
-inline bool MonstersDetection()
+inline uint8_t MonstersDetection(const float& x, const float& y, const float& z)
 {
-	if (BDO::g_b_navigation_monsters_detection)
+	if (BDO::Grinder::monsterDetection)
 	{
 		uint64_t& local_player_address = *((uint64_t*)g_kuip_LocalPlayer);
+
+		//teleport
+		uint64_t& character_control_address = *((uint64_t*)(local_player_address + g_ki32_CharacterController));
+		uint64_t& character_scene_address = *((uint64_t*)(character_control_address + g_ki32_CharacterScene));
+		uint64_t& teleport_1 = *((uint64_t*)(character_scene_address + g_ki32_teleport_1));
+		uint64_t& teleport_2 = *((uint64_t*)(teleport_1 + g_ki32_teleport_2));
+		uint64_t& teleport_3 = *((uint64_t*)(teleport_2 + g_ki32_teleport_3));
 
 		uint64_t& actorListFirstEntry = *((uint64_t*)(g_kuip_ActorList));
 		uint32_t& actorListCount = *((uint32_t*)(g_kuip_ActorList + 0x08));
@@ -1408,74 +1127,37 @@ inline bool MonstersDetection()
 
 			if (actorType_check == BDOEnums::ActorType_Monster)
 			{
-				//0 if the actor is not dead
-				bool& dead_actor = *((bool*)(actors.m_ui64_address + g_ki32_DeadActor));
+				bool& target_actor_dead = *((bool*)(actors.m_ui64_address + g_ki32_DeadActor)); //false if the actor is not dead
 
-				float monster_distance = sqrt(
+				float target_actor_distance = sqrt(
 					(*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Self[0])) - *((float*)(local_player_address + g_ki32_WorldPosition_Self[0]))) * (*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Self[0])) - *((float*)(local_player_address + g_ki32_WorldPosition_Self[0]))) +
 					(*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Self[1])) - *((float*)(local_player_address + g_ki32_WorldPosition_Self[1]))) * (*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Self[1])) - *((float*)(local_player_address + g_ki32_WorldPosition_Self[1]))) +
 					(*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Self[2])) - *((float*)(local_player_address + g_ki32_WorldPosition_Self[2]))) * (*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Self[2])) - *((float*)(local_player_address + g_ki32_WorldPosition_Self[2]))));
 
-				//float& l_f_target_position_x = *((float*)(*(((uint64_t*)((*((uint64_t*)(actors.m_ui64_address + g_ki32_CharacterController))) + g_ki32_characterLocalPlayer))) + g_ki32_WorldPosition_Target[0]));
-				//float& l_f_target_position_y = *((float*)(*(((uint64_t*)((*((uint64_t*)(actors.m_ui64_address + g_ki32_CharacterController))) + g_ki32_characterLocalPlayer))) + g_ki32_WorldPosition_Target[1]));
-				//float& l_f_target_position_z = *((float*)(*(((uint64_t*)(*(((uint64_t*)(actors.m_ui64_address + g_ki32_CharacterController))) + g_ki32_characterLocalPlayer))) + g_ki32_WorldPosition_Target[2]));
-
-				//float monster_distance = sqrt(
-				//	(l_f_target_position_x - *((float*)(local_player_address + g_ki32_WorldPosition_Self[0]))) * (l_f_target_position_x - *((float*)(local_player_address + g_ki32_WorldPosition_Self[0]))) +
-				//	(l_f_target_position_y - *((float*)(local_player_address + g_ki32_WorldPosition_Self[1]))) * (l_f_target_position_y - *((float*)(local_player_address + g_ki32_WorldPosition_Self[1]))) +
-				//	(l_f_target_position_z - *((float*)(local_player_address + g_ki32_WorldPosition_Self[2]))) * (l_f_target_position_z - *((float*)(local_player_address + g_ki32_WorldPosition_Self[2]))));
-
-				if (monster_distance <= BDO::g_f_monster_range && dead_actor == false)
-						return true;
+				if (!target_actor_dead && target_actor_distance <= BDO::Grinder::monsterRange)
+					return 1;
 			}
-		}
-	}
-
-	return false;
-}
-inline void LootNearby()
-{
-	if (BDO::g_b_navigation_looting)
-	{
-		Entity entity;
-		uint64_t local_player_address = *((uint64_t*)g_kuip_LocalPlayer);
-
-		uint64_t actorListFirstEntry = *((uint64_t*)(g_kuip_ActorList));
-		uint32_t actorListCount = *((uint32_t*)(g_kuip_ActorList + 0x08));
-		uint64_t currentEntry = *((uint64_t*)(actorListFirstEntry));
-
-		std::vector<ActorListManager> actorListInfo;
-		actorListInfo.reserve(actorListCount);
-		while (currentEntry != actorListFirstEntry)
-		{
-			actorListInfo.emplace_back(*((uint64_t*)(currentEntry + 0x18)));
-			currentEntry = *((uint64_t*)(currentEntry));
-		}
-
-		for (const auto& actors : actorListInfo)
-		{
-			uint8_t& actorType_check = *((uint8_t*)(actors.m_ui64_address + g_ki32_ActorType));
-
-			if (actorType_check == BDOEnums::ActorType_Deadbody)
+			else if (actorType_check == BDOEnums::ActorType_Deadbody)
 			{
-				float deadbody_distance = sqrt(
-					(*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[0])) - *((float*)(local_player_address + g_ki32_WorldPosition_Self[0]))) * (*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[0])) - *((float*)(local_player_address + g_ki32_WorldPosition_Self[0]))) +
-					(*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[1])) - *((float*)(local_player_address + g_ki32_WorldPosition_Self[1]))) * (*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[1])) - *((float*)(local_player_address + g_ki32_WorldPosition_Self[1]))) +
-					(*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[2])) - *((float*)(local_player_address + g_ki32_WorldPosition_Self[2]))) * (*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[2])) - *((float*)(local_player_address + g_ki32_WorldPosition_Self[2]))));
+				bool& actorHasBeenLooted = *((bool*)(actors.m_ui64_address + g_ki32_actorHasBeenLooted)); //false means yes (I know -_-)
 
-				while (deadbody_distance <= BDO::g_f_loot_range && !*((bool*)(actors.m_ui64_address + g_ki32_actorHasLoot)))
+				float target_actor_distance = sqrt(
+					(*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[0])) - x) * (*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[0])) - x) +
+					(*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[1])) - y) * (*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[1])) - y) +
+					(*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[2])) - z) * (*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[2])) - z));
+
+				if ((BDO::Grinder::teleportLooting && !actorHasBeenLooted) && (target_actor_distance > 300.0f && target_actor_distance <= BDO::Grinder::teleportLootingRange))
 				{
-					entity.Teleportation(
-						*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[0])) / 100,
-						(*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[1])) + 50) / 100,
-						*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[2])) / 100
-						, 0, deadbody_distance);
-
-					g_t_RequestDroppedItems(*((uint64_t*)g_kuip_LocalPlayer), actors.m_ui64_address);
+					*((float*)(teleport_3 + g_ki32_teleport_y)) = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Self[1])) / 100;
+					*((float*)(teleport_3 + g_ki32_teleport_x)) = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Self[0])) / 100;
+					*((float*)(teleport_3 + g_ki32_teleport_z)) = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Self[2])) / 100;
+					return 2;
 				}
 			}
 		}
 	}
+
+	return 0;
 }
 inline void PlayerCombat()
 {
@@ -1496,23 +1178,23 @@ inline void PlayerCombat()
 		if (2)
 
 
-		break;
+			break;
 	case 2:	//range skills
 		if (3)
 
 
-		break;
+			break;
 	case 3:	//heal skills
 		if (4)
 
 
-		break;
+			break;
 	}
 }
 
 void DebugTest()
 {
-	uint64_t& local_player_address = *((uint64_t*)g_kuip_LocalPlayer);
+	uint64_t& local_player_address = *BDO::g_pLocalPlayer;
 
 	uint64_t& actorListFirstEntry = *((uint64_t*)(g_kuip_ActorList));
 	uint32_t& actorListCount = *((uint32_t*)(g_kuip_ActorList + 0x08));
@@ -1531,8 +1213,10 @@ void DebugTest()
 
 	for (const auto& actors : actorListInfo)
 	{
-		std::wstring& l_ws_name = std::wstring((const wchar_t*)(*((uint64_t*)(actors.m_ui64_address + g_ki32_CharacterName))));
-		std::string l_s_name(l_ws_name.begin(), l_ws_name.end());
+		//get actor name
+		const wchar_t* l_wcpName = (const wchar_t*)(*((uint64_t*)(actors.m_ui64_address + g_ki32_CharacterName)));
+		char l_cName[33];
+		wcstombs(l_cName, l_wcpName, sizeof(l_cName));
 
 		uint8_t& actorType_check = *((uint8_t*)(actors.m_ui64_address + g_ki32_ActorType));
 
@@ -1542,8 +1226,14 @@ void DebugTest()
 			float& l_f_target_position_y = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Collectables[1]));
 			float& l_f_target_position_z = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Collectables[2]));
 
-			fLog("address: %p, floatx: %f, floaty: %f, floatz: %f, actorType: %d, name: %s", actors.m_ui64_address,
-				l_f_target_position_x, l_f_target_position_y, l_f_target_position_z, actorType_check, l_s_name.c_str());
+			float target_actor_distance = sqrt(
+				(l_f_target_position_x - *((float*)(local_player_address + g_ki32_WorldPosition_Self[0]))) * (l_f_target_position_x - *((float*)(local_player_address + g_ki32_WorldPosition_Self[0]))) +
+				(l_f_target_position_y - *((float*)(local_player_address + g_ki32_WorldPosition_Self[1]))) * (l_f_target_position_y - *((float*)(local_player_address + g_ki32_WorldPosition_Self[1]))) +
+				(l_f_target_position_z - *((float*)(local_player_address + g_ki32_WorldPosition_Self[2]))) * (l_f_target_position_z - *((float*)(local_player_address + g_ki32_WorldPosition_Self[2])))
+			);
+
+			fLog(XorStringA("address: %p, floatx: %f, floaty: %f, floatz: %f, distance: %f, actorType: %d, name: %s"), actors.m_ui64_address,
+				l_f_target_position_x, l_f_target_position_y, l_f_target_position_z, target_actor_distance, actorType_check, l_cName);
 		}
 		else
 		{
@@ -1551,8 +1241,14 @@ void DebugTest()
 			float& l_f_target_position_y = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[1]));
 			float& l_f_target_position_z = *((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[2]));
 
-			fLog("address: %p, floatx: %f, floaty: %f, floatz: %f, actorType: %d, name: %s", actors.m_ui64_address,
-				l_f_target_position_x, l_f_target_position_y, l_f_target_position_z, actorType_check, l_s_name.c_str());
+			float target_actor_distance = sqrt(
+				(l_f_target_position_x - *((float*)(local_player_address + g_ki32_WorldPosition_Self[0]))) * (l_f_target_position_x - *((float*)(local_player_address + g_ki32_WorldPosition_Self[0]))) +
+				(l_f_target_position_y - *((float*)(local_player_address + g_ki32_WorldPosition_Self[1]))) * (l_f_target_position_y - *((float*)(local_player_address + g_ki32_WorldPosition_Self[1]))) +
+				(l_f_target_position_z - *((float*)(local_player_address + g_ki32_WorldPosition_Self[2]))) * (l_f_target_position_z - *((float*)(local_player_address + g_ki32_WorldPosition_Self[2])))
+			);
+
+			fLog(XorStringA("address: %p, floatx: %f, floaty: %f, floatz: %f, distance: %f, actorType: %d, name: %s"), actors.m_ui64_address,
+				l_f_target_position_x, l_f_target_position_y, l_f_target_position_z, target_actor_distance, actorType_check, l_cName);
 		}
 	}
 }
@@ -1566,12 +1262,12 @@ void PrintAnimationIDandNames()
 
 	uint64_t& stringTable_address = *((uint64_t*)(g_kuip_StringTable_ASCII));
 	uint64_t& stringTable = *((uint64_t*)(stringTable_address));
-	
+
 	uint64_t NameEntryAddy = (stringTable + (0x10 * animationId));
 	//std::string animationName((char*)(*((uint64_t*)(NameEntryAddy)))); //less effcient, it has to allocate a buffer and copy the string into it
 	char* animationName = (char*)(*((uint64_t*)(NameEntryAddy))); //most effcient, works for ASCII but only print the first character for Unicode
 
-	fLog("printing: %d, %x, %s", animationId, NameEntryAddy, animationName);
+	fLog(XorStringA("printing: %d, %x, %s"), animationId, NameEntryAddy, animationName);
 }
 
 void RBFSuicide()
@@ -1579,43 +1275,47 @@ void RBFSuicide()
 	Entity entity;
 
 	entity.Teleportation(0.0f, 80.0f, 0.0f, 2, 800);
-
 	for (int x = 0; x < 7; x++)
 	{
-		entity.Teleportation(0.0f, 0.0f, 5.0f, 1, 500);
+		//entity.Teleportation(0.0f, 0.0f, 6.0f, 1, 500);
+		entity.Teleportation(-5.0f, 0.0f, 0.0f, 1, 500);
 	}
 
 	entity.Teleportation(0.0f, 80.0f, 0.0f, 2, 800);
-
 	for (int x = 0; x < 7; x++)
 	{
-		entity.Teleportation(0.0f, 0.0f, 5.0f, 1, 500);
+		//entity.Teleportation(0.0f, 0.0f, 6.0f, 1, 500);
+		entity.Teleportation(-5.0f, 0.0f, 0.0f, 1, 500);
 	}
 
 	entity.Teleportation(0.0f, 80.0f, 0.0f, 2, 800);
-
-	for (int x = 0; x < 7; x++)
+	for (int x = 0; x < 6; x++)
 	{
-		entity.Teleportation(0.0f, 0.0f, 5.0f, 1, 500);
+		//entity.Teleportation(0.0f, 0.0f, 6.0f, 1, 500);
+		entity.Teleportation(-5.0f, 0.0f, 0.0f, 1, 500);
 	}
 
 	entity.Teleportation(0.0f, 80.0f, 0.0f, 2, 800);
-
-	for (int x = 0; x < 7; x++)
+	for (int x = 0; x < 6; x++)
 	{
-		entity.Teleportation(0.0f, 0.0f, 5.0f, 1, 500);
+		//entity.Teleportation(0.0f, 0.0f, 6.0f, 1, 500);
+		entity.Teleportation(-5.0f, 0.0f, 0.0f, 1, 500);
 	}
 
 	entity.Teleportation(0.0f, 80.0f, 0.0f, 2, 800);
-
-	for (int x = 0; x < 7; x++)
+	for (int x = 0; x < 6; x++)
 	{
-		entity.Teleportation(0.0f, 0.0f, 5.0f, 1, 500);
+		//entity.Teleportation(0.0f, 0.0f, 6.0f, 1, 500);
+		entity.Teleportation(-5.0f, 0.0f, 0.0f, 1, 500);
 	}
+
+	entity.Teleportation(3116.103125f, -82.64145508f, 6105.249375f, 0, 1000);
+	entity.MoveTo(311610.3125f, -8264.145508f, 610524.9375f);
 }
 void BASuicide()
 {
 	Entity entity;
+
 	for (int x = 0; x < 3; ++x)
 	{
 		entity.Teleportation(0.0f, 0.0f, -20.0f, 2, 1000);
@@ -1626,25 +1326,29 @@ void BASuicide()
 }
 void AutomateFishing()
 {
+	BDO::Fishing::automateFishing = false;
+
 	Entity entity;
 
-	uint64_t local_player_address = *((uint64_t*)g_kuip_LocalPlayer);
-	uint64_t inventoryPtr = *((uint64_t*)(local_player_address + g_ki32_Inventory));
+	uint64_t& local_player_address = *((uint64_t*)g_kuip_LocalPlayer);
 	float old_PosX = *((float*)(local_player_address + g_ki32_WorldPosition_Self[0]));
 	float old_PosY = *((float*)(local_player_address + g_ki32_WorldPosition_Self[1]));
 	float old_PosZ = *((float*)(local_player_address + g_ki32_WorldPosition_Self[2]));
 	//rbf boat position: 3324, -82.080, 6525.680
-	BDO::g_b_clear_position = true;
 
 	LuaExecutor(XorStringA("ToClient_JoinLocalWar()"));
 
-	std::this_thread::sleep_for(std::chrono::seconds(10));
+	std::this_thread::sleep_for(std::chrono::seconds(9));
 
-	float new_PosX = *((float*)(local_player_address + g_ki32_WorldPosition_Self[0]));
-	float new_PosY = *((float*)(local_player_address + g_ki32_WorldPosition_Self[1]));
-	float new_PosZ = *((float*)(local_player_address + g_ki32_WorldPosition_Self[2]));
+	//LuaExecutor(XorStringA("inventoryUseItem(CppEnums.ItemWhereType.eInventory, 2, 0, true)"));
+
+	std::this_thread::sleep_for(std::chrono::seconds(1));
+
+	float& new_PosX = *((float*)(local_player_address + g_ki32_WorldPosition_Self[0]));
+	float& new_PosY = *((float*)(local_player_address + g_ki32_WorldPosition_Self[1]));
+	float& new_PosZ = *((float*)(local_player_address + g_ki32_WorldPosition_Self[2]));
 	float distance = sqrt((new_PosX - old_PosX) * (new_PosX - old_PosX) + (new_PosY - old_PosY) * (new_PosY - old_PosY) + (new_PosZ - old_PosZ) * (new_PosZ - old_PosZ));
-	if (distance < 300)
+	if (distance < 500)
 	{
 		fLog(XorStringA("Automated Fishing failed, unable to join red battlefield"));
 		return;
@@ -1655,78 +1359,32 @@ void AutomateFishing()
 
 	RBFSuicide();
 
-	//sleep until fall to death
+	//sleep until reached targetted fishing location
+	BDO::Character::activation = true;
 	std::this_thread::sleep_for(std::chrono::seconds(10));
 
-	//revive at the boat/node
-	LuaExecutor(XorStringA("deadMessage_RevivalExploration_Confirm()"));
+	BDO::Character::animationSpeed = 10.0f;
+	std::this_thread::sleep_for(std::chrono::microseconds(100));
+	BDO::Fishing::lockPosX = true;
+	std::this_thread::sleep_for(std::chrono::microseconds(100));
+	BDO::Fishing::activation = true;
 
-	std::this_thread::sleep_for(std::chrono::seconds(10));
-
-	g_t_UseInventoryItem(0, 2);
-
-	std::this_thread::sleep_for(std::chrono::seconds(1));
-
-	BDO::g_b_character_activation = true;
-	std::this_thread::sleep_for(std::chrono::seconds(1));
-	BDO::g_f_character_animation_speed = 10.0f;
-	std::this_thread::sleep_for(std::chrono::seconds(1));
-	BDO::g_b_auto_fishing = true;
-	std::this_thread::sleep_for(std::chrono::seconds(1));
-	BDO::g_b_reloadedUI_check = true;
-	std::this_thread::sleep_for(std::chrono::seconds(1));
-
-	while (BDO::g_b_auto_fishing)
+	while (BDO::Fishing::activation)
 	{
+		entity.Teleportation(3116.103125f, -82.64145508f, 6105.249375f, 0, 500);
+		entity.Teleportation(3103.62375f, -82.23729492f, 6085.681875f, 0, 500);
 		std::this_thread::sleep_for(std::chrono::seconds(1));
 	}
 
-	BDO::g_b_reloadedUI_check = false;
+	//LuaExecutor(XorStringA("inventoryUseItem(CppEnums.ItemWhereType.eInventory, 2, 0, true)"));
 
-	std::this_thread::sleep_for(std::chrono::seconds(3));
-
-	g_t_UseInventoryItem(0, 2);
-
-	std::this_thread::sleep_for(std::chrono::seconds(1));
+	std::this_thread::sleep_for(std::chrono::seconds(2));
 
 	LuaExecutor(XorStringA("ToClient_UnJoinLocalWar()"));
 
-	std::this_thread::sleep_for(std::chrono::seconds(10));
-
-	LuaExecutor(XorStringA("ToClient_JoinPvpBattleGround()"));
-
-	std::this_thread::sleep_for(std::chrono::seconds(10));
-
-	BASuicide();
-
-	//sleep until fall to death
-	std::this_thread::sleep_for(std::chrono::seconds(10));
-
-	//revivie to town
-	LuaExecutor(XorStringA("deadMessage_RevivalVillage_Confirm()"));
-
-	//sleep until game done reloading
-	std::this_thread::sleep_for(std::chrono::seconds(10));
-
-	//storage
-	LuaExecutor(XorStringA("HandleClicked_TownNpcIcon_NaviStart(6, true)"));
-	std::this_thread::sleep_for(std::chrono::seconds(5));
-	entity.Teleportation(1599.145f, -78.820f, 2904.767f, 0, 100);
-	std::this_thread::sleep_for(std::chrono::seconds(1));
-	LuaExecutor(XorStringA("RemoteControl_Interaction()"));
-	std::this_thread::sleep_for(std::chrono::seconds(1));
-	LuaExecutor(XorStringA("HandleClickedFuncButton(1)"));
-	std::this_thread::sleep_for(std::chrono::seconds(1));
-	g_t_InventoryToWarehouse(0, 2, 1, *((uint32_t*)(g_kuip_PushPopItems)));
-	std::this_thread::sleep_for(std::chrono::seconds(1));
-	LuaExecutor(XorStringA("RemoteControl_LeaveDialog()"));
-	std::this_thread::sleep_for(std::chrono::seconds(1));
+	std::this_thread::sleep_for(std::chrono::seconds(9));
 
 	//trader
-	LuaExecutor(XorStringA("HandleClicked_TownNpcIcon_NaviStart(5, true)"));
-	std::this_thread::sleep_for(std::chrono::seconds(10));
-	entity.Teleportation(1574.739f, -79.020f, 2921.715f, 0, 100);
-	std::this_thread::sleep_for(std::chrono::seconds(1));
 	LuaExecutor(XorStringA("RemoteControl_Interaction()"));
 	std::this_thread::sleep_for(std::chrono::seconds(1));
 	LuaExecutor(XorStringA("RemoteControl_OpenTrade()"));
@@ -1738,26 +1396,7 @@ void AutomateFishing()
 	LuaExecutor(XorStringA("RemoteControl_LeaveDialog()"));
 	std::this_thread::sleep_for(std::chrono::seconds(1));
 
-	//storage
-	entity.Teleportation(1588.767f, -79.016f, 2909.964f, 0, 1000);
-	entity.Teleportation(1591.330f, -79.016f, 2909.47f, 0, 1000);
-	uint64_t silvercount = *((uint64_t*)(inventoryPtr + 0x10));
-	entity.Teleportation(1599.145f, -78.820f, 2904.767f, 0, 1000);
-	std::this_thread::sleep_for(std::chrono::seconds(1));
-	LuaExecutor(XorStringA("RemoteControl_Interaction()"));
-	std::this_thread::sleep_for(std::chrono::seconds(1));
-	LuaExecutor(XorStringA("HandleClickedFuncButton(1)"));
-	std::this_thread::sleep_for(std::chrono::seconds(1));
-	g_t_InventoryToWarehouse(0, 0, silvercount, *((uint32_t*)(g_kuip_PushPopItems)));
-	std::this_thread::sleep_for(std::chrono::seconds(3));
-	g_t_WarehouseToInventory(1, 1, *((uint32_t*)(g_kuip_PushPopItems))); //warehouse to inventory
-	std::this_thread::sleep_for(std::chrono::seconds(1));
-
-	LuaExecutor(XorStringA("ToClient_UnJoinPvpBattleGround()"));
-
-	std::this_thread::sleep_for(std::chrono::seconds(15));
-
-	BDO::g_b_automate_fishing = true;
+	BDO::Fishing::automateFishing = true;
 }
 void GrinderTeleport()
 {
@@ -1787,72 +1426,67 @@ void GrinderTeleport()
 	//start at the nearest node
 	for (nearest_node; nearest_node < current_node; ++nearest_node)
 	{
-		if (!BDO::g_b_navigation_activate)
+		if (!BDO::Grinder::activate)
 			return;
 
-		BDO::g_i32_navigation_lastpoint = nearest_node + 1; //waypoint vector starts at 0 while waypoint file starts at 1
+		BDO::Grinder::lastWaypoint = nearest_node + 1; //waypoint vector starts at 0 while waypoint file starts at 1
 
 		entity.Teleportation(g_v_waypoints_file[nearest_node].m_f_x / 100, g_v_waypoints_file[nearest_node].m_f_y / 100, g_v_waypoints_file[nearest_node].m_f_z / 100, g_v_waypoints_file[nearest_node].m_ui16_type, g_v_waypoints_file[nearest_node].m_ui16_delay);
 
-		while (MonstersDetection())
+		while (uint8_t result = MonstersDetection(g_v_waypoints_file[nearest_node].m_f_x, g_v_waypoints_file[nearest_node].m_f_y, g_v_waypoints_file[nearest_node].m_f_z) != 0 || BDO::Grinder::pause)
 		{
-			//BDO::g_b_character_animation_lock = true;
-			std::this_thread::sleep_for(std::chrono::milliseconds(200));
+			if (result == 2)
+			{
+				entity.Teleportation(g_v_waypoints_file[nearest_node].m_f_x / 100, g_v_waypoints_file[nearest_node].m_f_y / 100, g_v_waypoints_file[nearest_node].m_f_z / 100, g_v_waypoints_file[nearest_node].m_ui16_type, 10);
+			}
+
+			std::this_thread::sleep_for(std::chrono::milliseconds(10));
 		}
-
-		//BDO::g_b_character_animation_lock = false;
-
-		LootNearby();
-
-		while (BDO::g_b_navigation_pause)
-			std::this_thread::sleep_for(std::chrono::milliseconds(200));
 	}
 
 	//actual start
-	while (BDO::g_b_navigation_activate && !g_v_waypoints_file.empty())
+	while (BDO::Grinder::activate && !g_v_waypoints_file.empty())
 	{
 		uint16_t current_line_count = 1; //waypoint file starts at 1
 		for (const auto& grinding : g_v_waypoints_file)
 		{
-			if (!BDO::g_b_navigation_activate)
+			if (!BDO::Grinder::activate)
 				return;
 
-			BDO::g_i32_navigation_lastpoint = current_line_count; //get current waypoint
+			BDO::Grinder::lastWaypoint = current_line_count; //get current waypoint
 
 			entity.Teleportation(grinding.m_f_x / 100, grinding.m_f_y / 100, grinding.m_f_z / 100, grinding.m_ui16_type, grinding.m_ui16_delay);
 
-			while (MonstersDetection())
+			while (uint8_t result = MonstersDetection(grinding.m_f_x, grinding.m_f_y, grinding.m_f_z) != 0 || BDO::Grinder::pause)
 			{
-				//BDO::g_b_character_animation_lock = true;
-				std::this_thread::sleep_for(std::chrono::milliseconds(200));
+				if (result == 2)
+				{
+					entity.Teleportation(grinding.m_f_x / 100, grinding.m_f_y / 100, grinding.m_f_z / 100, grinding.m_ui16_type, 10);
+				}
+
+				std::this_thread::sleep_for(std::chrono::milliseconds(10));
 			}
-
-			//BDO::g_b_character_animation_lock = false;
-
-			LootNearby();
-
-			while (BDO::g_b_navigation_pause)
-				std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
 			++current_line_count;
-		}
 
-		//initiate ingame variables linkage
-		g_b_lua_pipe_call = true;
-		std::this_thread::sleep_for(std::chrono::milliseconds(250));
-		while (BDOLuaVariables::sumtotalWeight > 163) //close the game if weight is over 160%
-		{
-			static bool print_once = false;
-			LuaExecutor(XorStringA("ToClient_JoinLocalWar()"));
-			LuaExecutor(XorStringA("ToClient_SavageDefenceJoin()"));
-			if (!print_once)
+			if (current_line_count == 1)
 			{
-				fLog(XorStringA("OverWeight"));
-				print_once = true;
-			}
-			if (BDO::g_b_reloadedUI)
-			{
-				ExitProcess(0);
+				//initiate ingame variables linkage
+				g_b_lua_pipe_call = true;
+				while (BDOLuaVariables::sumtotalWeight >= 165) //close the game if weight is over 165%
+				{
+					static bool print_once = false;
+					LuaExecutor(XorStringA("ToClient_JoinLocalWar()ToClient_SavageDefenceJoin()"));
+					if (!print_once)
+					{
+						fLog(XorStringA("OverWeight"));
+						print_once = true;
+					}
+					if (BDO::g_bReloadedUI)
+					{
+						ExitProcess(0);
+					}
+				}
 			}
 		}
 	}
@@ -1902,12 +1536,12 @@ void GrinderWalk()
 	//start at the nearest node
 	for (nearest_node; nearest_node < current_node; ++nearest_node)
 	{
-		BDO::g_i32_navigation_lastpoint = nearest_node + 1; //waypoint vector starts at 0 while waypoint file starts at 1
+		BDO::Grinder::lastWaypoint = nearest_node + 1; //waypoint vector starts at 0 while waypoint file starts at 1
 
 		while (!cleared)
 		{
-			if (BDO::g_b_navigation_activate)
-				*((uint8_t*)local_player_address + g_ki32_MovementControl) = 1.0f;
+			if (BDO::Grinder::activate)
+				* ((uint8_t*)local_player_address + g_ki32_MovementControl) = 1.0f;
 			else
 				return;
 
@@ -1915,7 +1549,7 @@ void GrinderWalk()
 			destination_position_y = g_v_waypoints_file[nearest_node].m_f_y;
 			destination_position_z = g_v_waypoints_file[nearest_node].m_f_z;
 
-			float destination_distance = sqrt((current_position_x - g_v_waypoints_file[nearest_node].m_f_x) * (current_position_x - g_v_waypoints_file[nearest_node].m_f_x) 
+			float destination_distance = sqrt((current_position_x - g_v_waypoints_file[nearest_node].m_f_x) * (current_position_x - g_v_waypoints_file[nearest_node].m_f_x)
 				+ (current_position_z - g_v_waypoints_file[nearest_node].m_f_z) * (current_position_z - g_v_waypoints_file[nearest_node].m_f_z));
 
 			//kill mob function
@@ -1938,7 +1572,7 @@ void GrinderWalk()
 					float& l_f_target_position_x = *((float*)(*(((uint64_t*)((*((uint64_t*)(actors.m_ui64_address + g_ki32_CharacterController))) + g_ki32_characterLocalPlayer))) + g_ki32_WorldPosition_Target[0]));
 					float& l_f_target_position_y = *((float*)(*(((uint64_t*)(*(((uint64_t*)(actors.m_ui64_address + g_ki32_CharacterController))) + g_ki32_characterLocalPlayer))) + g_ki32_WorldPosition_Target[1]));
 					float& l_f_target_position_z = *((float*)(*(((uint64_t*)(*(((uint64_t*)(actors.m_ui64_address + g_ki32_CharacterController))) + g_ki32_characterLocalPlayer))) + g_ki32_WorldPosition_Target[2]));
-					
+
 					float monster_distance = sqrt(
 						(*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[0])) - *((float*)(local_player_address + g_ki32_WorldPosition_Static[0]))) * (*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[0])) - *((float*)(local_player_address + g_ki32_WorldPosition_Static[0]))) +
 						(*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[1])) - *((float*)(local_player_address + g_ki32_WorldPosition_Static[1]))) * (*((float*)(actors.m_ui64_address + g_ki32_WorldPosition_Static[1])) - *((float*)(local_player_address + g_ki32_WorldPosition_Static[1]))) +
@@ -1962,7 +1596,7 @@ void GrinderWalk()
 			if (destination_distance <= 150.0f)
 				cleared = true;
 
-			while (BDO::g_b_navigation_pause)
+			while (BDO::Grinder::pause)
 				std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
 			actorListInfo.clear();
@@ -1975,18 +1609,18 @@ void GrinderWalk()
 	}
 
 	//actual start
-	while (BDO::g_b_navigation_activate && !g_v_waypoints_file.empty())
+	while (BDO::Grinder::activate && !g_v_waypoints_file.empty())
 	{
 		uint16_t current_line_count = 1; //waypoint file starts at 1
 
 		for (const auto& grinding : g_v_waypoints_file)
 		{
-			BDO::g_i32_navigation_lastpoint = current_line_count;
+			BDO::Grinder::lastWaypoint = current_line_count;
 
 			while (!cleared)
 			{
-				if (BDO::g_b_navigation_activate)
-					*((uint8_t*)local_player_address + g_ki32_MovementControl) = 1.0f;
+				if (BDO::Grinder::activate)
+					* ((uint8_t*)local_player_address + g_ki32_MovementControl) = 1.0f;
 				else
 					return;
 
@@ -2040,7 +1674,7 @@ void GrinderWalk()
 				if (destination_distance <= 150.0f)
 					cleared = true;
 
-				while (BDO::g_b_navigation_pause)
+				while (BDO::Grinder::pause)
 					std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
 				actorListInfo.clear();
@@ -2055,271 +1689,227 @@ void GrinderWalk()
 	}
 }
 
-void MarketSystem()
+void TossAwayJunkItems()
 {
-	static ImGuiLog m_market_log;
+	//fetch inventory information
+	std::vector<InvenPipe>inventoryInfo;
+	int8_t maxInventorySlots = DumpInventory(2, &inventoryInfo);
 
-	static auto rng = std::default_random_engine{};
-
-	if (BDO::g_b_auto_buy && g_v_market_items.empty())
+	std::unordered_map<std::string, uint32_t> filterItems;
+	std::string endReading = XorStringA("<end>");
+	std::string itemName;
+	int filteritemId;
+	int filterdupCheck = 0;
+	std::ifstream filterfin;
+	filterfin.open(GetDirectoryFile(XorStringA("FilterItems.ini")), std::ifstream::in);
+	while (filterfin.good())
 	{
-		LuaExecutor(XorStringA("Proc_ShowMessage_Ack('<PAColor0xFFB69A80>Please Load Market File First<PAOldColor>')"));
-		BDO::g_b_auto_buy = false;
+		std::getline(filterfin, itemName, ',');
+		if (itemName.find(endReading) != std::string::npos)
+			break;
+		filterfin >> filteritemId;
+		filterfin.ignore(1); //ignore newline
+		if (filterdupCheck == filteritemId)
+			break;
+		filterItems.emplace(itemName, filteritemId);
+		//Log("counter %d", filteritemId);
+		filterdupCheck = filteritemId;
 	}
+	filterfin.close();
 
-	if (BDO::g_b_show_market_log)
+	std::string queue_up_lua_code;
+
+	for (int x = 2; x < maxInventorySlots; x++) //trash garbage items
 	{
-		static bool l_b_shown_market_log_first_time;
-		m_market_log.Draw("Market Log");
-
-		uint64_t warehouse_money = g_t_WarehouseMoneyFromNPCShop();
-
-		if (warehouse_money != BDO::g_ui64_warehouse_silver_for_market || !l_b_shown_market_log_first_time)
+		for (auto& target : filterItems)
 		{
-			BDO::g_ui64_warehouse_silver_for_market = warehouse_money;
-			m_market_log.AddLog("Warehouse Money: %llu\n", BDO::g_ui64_warehouse_silver_for_market);
-
-			l_b_shown_market_log_first_time = true;
-		}
-	}
-
-	if (BDO::g_b_auto_buy)
-	{
-		if (TimerFunction(BDO::g_i32_execution_interval))
-		{
-			for (uint8_t item_counter = 0; item_counter < g_v_market_items.size(); item_counter++)
+			if (inventoryInfo[x].m_ui16_item_id == target.second)
 			{
-				g_t_RequestItemMarketSellInfo(BDO::g_i32_territory_key, g_v_market_items[item_counter].m_ui32_itemid);
-
-				uint32_t target_slot_count = g_t_GetItemMarketSellInfoInClientCount(BDO::g_i32_territory_key, g_v_market_items[item_counter].m_ui32_itemid);
-
-				if (target_slot_count == 0)
-					continue;
-
-				for (uint32_t slot_index = 0; slot_index < target_slot_count; slot_index++)
-				{
-					uint64_t sell_info = g_t_GetItemMarketSellInfoInClientByIndex(BDO::g_i32_territory_key, g_v_market_items[item_counter].m_ui32_itemid, slot_index);
-
-					if (sell_info == 0x00)
-						continue;
-
-					uint64_t& sell_info_count = *((uint64_t*)(sell_info + 0x18));
-
-					if (sell_info_count > 0)
-					{
-						bool is_bidding_item = g_t_IsBiddingItem(sell_info);
-
-						uint64_t one_price = g_t_GetOnePrice(sell_info);
-						uint64_t total_price = (one_price * sell_info_count);
-
-						if (g_t_WarehouseMoneyFromNPCShop() < total_price)
-							continue;
-
-						if (is_bidding_item)
-						{
-							bool is_bidding_join_time = g_t_IsBiddingJoinTime(sell_info);
-							uint64_t item_market_no = g_t_GetItemMarketNo(sell_info);
-							bool is_bidding_join_item = g_t_IsBiddingJoinItem(item_market_no);
-
-							if (is_bidding_join_time)
-							{
-								if (!is_bidding_join_item)
-								{
-									m_market_log.AddLog("[%s] Bidding on %s [Price: %llu]\n", get_formatted_datetime().c_str(), g_v_market_items[item_counter].m_s_name.c_str(), total_price);
-
-									g_t_RequestBuyItemForItemMarket(BDO::g_i32_wallet_type * 2, g_v_market_items[item_counter].m_ui32_itemid, slot_index, sell_info_count);
-								}
-							}
-							else if (is_bidding_join_item)
-							{
-								m_market_log.AddLog("[%s] Confirming bid on %s [Price: %llu]\n", get_formatted_datetime().c_str(), g_v_market_items[item_counter].m_s_name.c_str(), total_price);
-
-								g_t_RequestBuyItemForItemMarket(BDO::g_i32_wallet_type * 2, g_v_market_items[item_counter].m_ui32_itemid, slot_index, sell_info_count);
-							}
-						}
-						else
-						{
-							m_market_log.AddLog("[%s] Buying %s [Price: %llu]\n", get_formatted_datetime().c_str(), g_v_market_items[item_counter].m_s_name.c_str(), total_price);
-
-							g_t_RequestBuyItemForItemMarket(BDO::g_i32_wallet_type * 2, g_v_market_items[item_counter].m_ui32_itemid, slot_index, sell_info_count);
-						}
-					}
-				}
-
-				g_v_market_items.emplace_back(g_v_market_items[item_counter].m_s_name, g_v_market_items[item_counter].m_ui32_itemid);
-				g_v_market_items.erase(g_v_market_items.begin() + item_counter);
+				std::string slot = std::to_string(inventoryInfo[x].m_ui8_slot - 1);
+				queue_up_lua_code += XorStringA("Inventory_DeleteItem(") + slot + XorStringA(")");
 			}
 		}
 	}
+
+	if (!queue_up_lua_code.empty())
+		LuaExecutor(queue_up_lua_code.c_str());
 }
+
 void BaseFunctions()
 {
-	if (BDO::g_b_navigation_player_detection && PlayersDetection(BDO::g_b_player_detection_overwrite))
+	if (BDO::Grinder::playerDetection && ActorsDetection(BDO::Character::playerDetectorOverwrite))
 	{
-		//LuaExecutor(XorStringA("getSelfPlayer():setActionChart('WAIT')"));
-		LuaExecutor(XorStringA("ToClient_JoinLocalWar()"));
-		LuaExecutor(XorStringA("ToClient_SavageDefenceJoin()"));
-		//LuaExecutor(XorStringA("ToClient_JoinPvpBattleGround()"));
-		if (BDO::g_b_reloadedUI || TimerFunction(1000))
-		{
-			fLog(XorStringA("Player Detection Triggered"));
-			ExitProcess(0);
-		}
+		LuaExecutor(XorStringA("getSelfPlayer():setActionChart('WAIT')ToClient_UnJoinPvpBattleGround()ToClient_UnJoinLocalWar()ToClient_GuildBattle_UnjoinGuildBattle()ToClient_SavageDefenceJoin()ToClient_JoinLocalWar()ToClient_JoinPvpBattleGround()"));
 	}
 	//debug
-	if (BDO::g_b_debug)
+	if (BDO::g_bDebug)
 	{
 		//std::thread(InputEvents,true, BDOEnums::KeyCode_W, BDOEnums::KeyCode_F, BDOEnums::KeyCode_None).detach();
-		//BDO::g_b_debug = false;
+		//BDO::g_bDebug = false;
 	}
-	//g_b_is_ready_to_play
-	if (*BDO::g_p_in_game)
+	//BDO::g_bIsReadyToPlay
+	if (*BDO::g_pLocalPlayer)
 	{
-		uint64_t local_player_address = *((uint64_t*)g_kuip_LocalPlayer);
-		BDO::g_b_is_ready_to_play = *((uint8_t*)(local_player_address + g_ki32_IsReadyToPlay));
-	}
-	//Check if vehicle exist and if its channel/character switching
-	if (*BDO::g_p_vehicle_exist && *BDO::g_p_in_game)
-	{
-		uintptr_t vehicle_base_address = *((uintptr_t*)g_kuip_CurrentVehicle);
+		uint64_t& local_player_address = *BDO::g_pLocalPlayer;
+		BDO::g_bIsReadyToPlay = *((uint8_t*)(local_player_address + g_ki32_IsReadyToPlay));
 
-		if (!BDO::g_b_vehicle_activation || PlayersDetection(BDO::g_b_player_detection_overwrite))
+		//patching
+		static bool l_b_firsttime;
+		if (!l_b_firsttime)
 		{
-			*((int*)(vehicle_base_address + g_ki32_mount_accel)) = 1490000;
-			*((int*)(vehicle_base_address + g_ki32_mount_speed)) = 1590000;
-			*((int*)(vehicle_base_address + g_ki32_mount_turn)) = 1450000;
-			*((int*)(vehicle_base_address + g_ki32_mount_brake)) = 1450000;
-			if (!BDO::g_b_vehicle_activation)
-			{
-				BDO::g_i32_vehicle_accel_slider = 149;
-				BDO::g_i32_vehicle_speed_slider = 159;
-				BDO::g_i32_vehicle_turn_slider = 145;
-				BDO::g_i32_vehicle_brake_slider = 145;
-			}
+			//define foreground patch
+			BYTE* m_bp_foregroundCheck = reinterpret_cast<BYTE*>(g_kuip_GetKeyInputStatePressed + 0x24);
+			BYTE m_b_patchForegroundCheck[2] = { 0xEB,0x40 };
+			//focus window patch
+			BYTE* m_bp_checkFocus = reinterpret_cast<BYTE*>(g_kuip_PatchWindowFocus);
+			BYTE m_b_patchFocus[3] = { 0x0F, 0x95, 0xC0 };
+
+			memcpy(m_bp_foregroundCheck, m_b_patchForegroundCheck, sizeof(m_b_patchForegroundCheck));
+			memcpy(m_bp_checkFocus, m_b_patchFocus, sizeof(m_b_patchFocus));
+			l_b_firsttime = true;
 		}
-		else if (BDO::g_b_vehicle_activation)
-		{
-			*((int*)(vehicle_base_address + g_ki32_mount_accel)) = BDO::g_i32_vehicle_accel_slider * 10000;
-			*((int*)(vehicle_base_address + g_ki32_mount_speed)) = BDO::g_i32_vehicle_speed_slider * 10000;
-			*((int*)(vehicle_base_address + g_ki32_mount_turn)) = BDO::g_i32_vehicle_turn_slider * 10000;
-			*((int*)(vehicle_base_address + g_ki32_mount_brake)) = BDO::g_i32_vehicle_brake_slider * 10000;
-		}
+
+		uint64_t& mainWindowBaseAddress = *((uint64_t*)(g_kuip_MainWindowBase));
+		bool hasFocus = mainWindowBaseAddress + 0x1490;
+		if (!hasFocus)
+			hasFocus = true;
+	}
+	else
+	{
+		BDO::g_bIsReadyToPlay = false;
 	}
 	//Check if channel/character switching/reloaded UI (leaving instance places), if so turn off everything.
-	if (!*BDO::g_p_in_game || !BDO::g_b_is_ready_to_play || BDO::g_b_reloadedUI)
+	if (!BDO::g_bIsReadyToPlay || BDO::g_bReloadedUI)
 	{
-		//if(BDO::g_b_reloadedUI)
-		//cLog("UI reloaded");
-		BDO::g_b_character_activation = false;
-		BDO::g_b_game_loaded_first_time = false;
-		BDO::g_b_auto_fishing = false;
-		BDO::g_b_auto_manufacture = false;
-		BDO::g_b_auto_buy = false;
-		BDO::g_b_reloadedUI = false;
-		BDO::g_b_navigation_pet_loot = false;
-		BDO::g_b_navigation_player_detection = false;
-		BDO::g_b_vehicle_activation = false;
-		BDO::g_b_navigation_activate = false;
-
-		if (BDO::g_btp_pet_system_bypass != BDO::g_bt_pet_system_nop)
-			memcpy(BDO::g_btp_pet_system_bypass, BDO::g_bt_pet_system_nop, sizeof(BDO::g_bt_pet_system_nop));
-
-		if (BDO::g_btp_bypass_obstacle != BDO::g_bt_obstacle_normal)
-			memcpy(BDO::g_btp_bypass_obstacle, BDO::g_bt_obstacle_normal, sizeof(BDO::g_bt_obstacle_normal));
-
-		if (BDO::g_b_navigation_reload_check)
+		if (BDO::Grinder::reloadCheck || BDO::Fishing::activation || BDO::Grinder::playerDetection)
 		{
-			fLog(XorStringA("Crash from random Reload"));
+			if (BDO::Grinder::reloadCheck)
+				fLog(XorStringA("Crash from random Reload"));
+
+			if (BDO::Fishing::activation)
+				fLog(XorStringA("Player or teleport detected while fishing"));
+
+			if (BDO::Grinder::playerDetection)
+				fLog(XorStringA("Player detected while grinding"));
+
 			ExitProcess(0);
 		}
+
+		if (BDO::g_ucpIgnoreCollision != BDO::g_ucCollision_Normal)
+			memcpy(BDO::g_ucpIgnoreCollision, BDO::g_ucCollision_Normal, sizeof(BDO::g_ucCollision_Normal));
+
+		BDO::Character::activation = false;
+		BDO::g_bGameLoadedFirstTime = false;
+		BDO::Fishing::activation = false;
+		BDO::Manufacture::activation = false;
+		BDO::g_bReloadedUI = false;
+		BDO::Grinder::petLoot = false;
+		BDO::Grinder::playerDetection = false;
+		BDO::Vehicle::activation = false;
+		BDO::Grinder::activate = false;
 
 	}
 	else
 	{
 		Entity entity;
-		ESP esp;
+
+		uint64_t& local_player_address = *((uint64_t*)g_kuip_LocalPlayer);
+		uint64_t& character_control_address = *((uint64_t*)(local_player_address + g_ki32_CharacterController));
+		uint64_t& character_scene_address = *((uint64_t*)(character_control_address + g_ki32_CharacterScene));
+		if (ActorsDetection(BDO::Character::playerDetectorOverwrite) || !BDO::Character::activation)
+		{
+			memcpy(BDO::g_ucpPatchSpeed, BDO::g_ucSpeed_Normal, sizeof(BDO::g_ucSpeed_Normal));
+			memcpy(BDO::g_ucpNoCooldown, BDO::g_ucCooldown_Normal, sizeof(BDO::g_ucCooldown_Normal));
+
+			*((float*)(character_scene_address + g_ki32_CharacterAnimation)) = 1.0f; //restore default animation speed
+
+			if (!BDO::Character::activation)
+			{
+				BDO::Character::jumpHeight = 0.0f; //*((float*)(character_control_address + g_ki32_JumpHeight)); //restore default jump height
+				BDO::Character::animationSpeed = 1.0f;
+			}
+		}
+		else
+		{
+			//movement type
+			if (BDO::Character::movementType == 1)
+				memcpy(BDO::g_ucpPatchSpeed, BDO::g_ucSpeed_Fast, sizeof(BDO::g_ucSpeed_Fast));
+			else
+				memcpy(BDO::g_ucpPatchSpeed, BDO::g_ucSpeed_Normal, sizeof(BDO::g_ucSpeed_Normal));
+
+			//no cooldown
+			if (BDO::Character::noCooldown)
+				memcpy(BDO::g_ucpNoCooldown, BDO::g_ucCooldown_Reduced, sizeof(BDO::g_ucCooldown_Reduced));
+			else
+				memcpy(BDO::g_ucpNoCooldown, BDO::g_ucCooldown_Normal, sizeof(BDO::g_ucCooldown_Normal));
+
+			//*((float*)(character_control_address + g_ki32_JumpHeight)) = jumpHeight;
+
+			if (BDO::Grinder::animationLock)
+				* ((float*)(character_scene_address + g_ki32_CharacterAnimation)) = FLT_MAX;
+			else if (!BDO::Grinder::animationLock && entity.AnimationCheck(0, "")) //activate only when attacking
+				* ((float*)(character_scene_address + g_ki32_CharacterAnimation)) = BDO::Character::animationSpeed;
+			else
+				*((float*)(character_scene_address + g_ki32_CharacterAnimation)) = 1.0f;
+		}
+
+		//draw esp
+		if (BDO::ESP::drawESP)
+			ESP::GetInstance().DrawESP();
+		//draw on world map
+		if (BDO::ESP::drawWorldMap)
+			ESP::GetInstance().DrawOnWorldMap();
+		//draw waypoints
+		if (BDO::Grinder::showSavedPath)
+			ESP::GetInstance().DrawWayPoints();
+
 		//teleport to crosshair
 		if (ImGui::IsKeyReleased(VK_F12) & 0x01)
 		{
-			uint64_t local_player_address = *((uint64_t*)g_kuip_LocalPlayer);
-			entity.Teleportation(*((float*)(local_player_address + g_ki32_cursor_position_x))/100, *((float*)(local_player_address + g_ki32_cursor_position_y))/100, *((float*)(local_player_address + g_ki32_cursor_position_z))/100, 0, 100);
+			entity.Teleportation(*((float*)(local_player_address + g_ki32_cursor_position_x)) / 100, *((float*)(local_player_address + g_ki32_cursor_position_y)) / 100, *((float*)(local_player_address + g_ki32_cursor_position_z)) / 100, 0, 100);
 		}
 		//if (ImGui::IsKeyReleased(VK_F1) & 0x01)
 		//{
-		//	BDO::g_b_character_animation_lock = !BDO::g_b_character_animation_lock;
+		//	animationLock = !animationLock;
 		//}
 		//auto manufacture
-		if (BDO::g_b_auto_manufacture)
-		{
+		if (BDO::Manufacture::activation)
 			entity.AutoManufacture();
-		}
-		else if (!BDO::g_b_auto_manufacture && BDO::g_b_is_manufacturing)
-		{
-			BDO::g_b_is_manufacturing = false;
-		}
-		//auto sell relics
-		if (BDO::g_b_auto_sell)
-		{
-			entity.AutoSell();
-		}
-		// reloaded ui check
-		if (BDO::g_b_reloadedUI_check)
-		{
-			entity.reloadUI();
-		}
-		//auto worker
-		if (BDO::g_b_worker_auto_restore)
-		{
-			entity.WorkersRestore();
-		}
-		//remove desert debuff
-		if (BDO::g_b_remove_desert_debuff)
-		{
-			entity.RemoveDesertDebuff();
-		}
-		//draw esp
-		if (BDO::g_b_show_esp)
-		{
-			esp.DrawESP();
-		}
-		//draw on world map
-		if (BDO::g_b_show_world_map)
-		{
-			esp.DrawOnWorldMap();
-		}
-		//draw waypoints
-		if (BDO::g_b_navigation_show_waypoints)
-		{
-			esp.DrawWayPoints();
-		}
-		//auto fishing
-		if (BDO::g_b_auto_fishing) //right now its doing fishing
-		{
-			entity.AutoFish(BDO::g_i32_predictGrade, BDO::g_b_relics_only);
-			uint64_t local_player_address = *((uint64_t*)g_kuip_LocalPlayer);
-			float getPosX = fabsf(*((float*)(local_player_address + g_ki32_WorldPosition_Self[0])));
-			float veriPos = fabsf(BDO::g_f_fishingPosX - getPosX);
 
-			if (PlayersDetection(BDO::g_b_player_detection_overwrite) || !BDO::g_b_is_ready_to_play || veriPos > 500) //check for players and teleport
+		//auto fishing
+		if (BDO::Fishing::activation) //right now its doing fishing
+		{
+			if (!BDO::Fishing::lockPosX && BDO::Fishing::fishingPosX == NULL)
 			{
-				ExitProcess(0);
+				BDO::Fishing::fishingPosX = fabsf(*(float*)(local_player_address + g_ki32_WorldPosition_Self[0]));
+			}
+
+			entity.AutoFish(BDO::Fishing::fishGrade);
+			float getPosX = fabsf(*(float*)(local_player_address + g_ki32_WorldPosition_Self[0]));
+			float veriPos = fabsf(BDO::Fishing::fishingPosX - getPosX);
+
+			if (BDO::Fishing::lockPosX)
+				veriPos = 0.0f;
+
+			if (ActorsDetection(BDO::Character::playerDetectorOverwrite) || !BDO::g_bIsReadyToPlay || veriPos > 1.0f) //check for players and teleport
+			{
+				if (veriPos > 1.0f)
+					fLog(XorStringA("displacement detected: %f"), veriPos);
+				else
+					fLog(XorStringA("player detected during fishing"));
+
+				LuaExecutor(XorStringA("getSelfPlayer():setActionChart('WAIT')ToClient_UnJoinPvpBattleGround()ToClient_UnJoinLocalWar()ToClient_GuildBattle_UnjoinGuildBattle()ToClient_SavageDefenceJoin()ToClient_JoinLocalWar()ToClient_JoinPvpBattleGround()"));
 			}
 		}
-		if (BDO::g_b_clear_position)
+		else if (!BDO::Fishing::activation && BDO::Fishing::fishingPosX != NULL)
 		{
-			uint64_t local_player_address = *((uint64_t*)g_kuip_LocalPlayer);
-			BDO::g_f_fishingPosX = fabsf(*((float*)(local_player_address + g_ki32_WorldPosition_Self[0])));
-			BDO::g_b_clear_position = false;
+			BDO::Fishing::fishingPosX = NULL;
 		}
-		if (BDO::g_b_automate_fishing)
+		if (BDO::Fishing::automateFishing)
 		{
-			if (TimerFunction(200))
-			{
-				std::thread(AutomateFishing).detach();
-				BDO::g_b_automate_fishing = false;
-			}
+			std::thread(AutomateFishing).detach();
 		}
-		if (BDO::g_b_navigation_pet_loot)
+		if (BDO::Grinder::petLoot)
 		{
 			static uint8_t pet_control = 1;
 			if (TimerFunction(1800))
@@ -2342,52 +1932,39 @@ void BaseFunctions()
 				//}
 			}
 		}
-		if (BDO::g_b_navigation_record)
+		if (BDO::Grinder::recordPath)
 		{
-			uint64_t local_player_address = *((uint64_t*)g_kuip_LocalPlayer);
-			static float old_PosX, old_PosY, old_PosZ;
-			static float new_PosX, new_PosY, new_PosZ;
-			if (!BDO::g_b_navigation_record_check)
+			static float old_PosX = *((float*)(local_player_address + g_ki32_WorldPosition_Self[0])), old_PosY = *((float*)(local_player_address + g_ki32_WorldPosition_Self[1])), old_PosZ = *((float*)(local_player_address + g_ki32_WorldPosition_Self[2]));
+
+			float distance = sqrt(
+				(*((float*)(local_player_address + g_ki32_WorldPosition_Self[0])) - old_PosX) * (*((float*)(local_player_address + g_ki32_WorldPosition_Self[0])) - old_PosX)
+				+ (*((float*)(local_player_address + g_ki32_WorldPosition_Self[1])) - old_PosY) * (*((float*)(local_player_address + g_ki32_WorldPosition_Self[1])) - old_PosY)
+				+ (*((float*)(local_player_address + g_ki32_WorldPosition_Self[2])) - old_PosZ) * (*((float*)(local_player_address + g_ki32_WorldPosition_Self[2])) - old_PosZ));
+
+			if (distance >= 150) //log the position if the distance is at least 150
 			{
+				fLog(XorStringA("%f, %f, %f, 0, %.0f"), old_PosX, old_PosY + 50, old_PosZ, ceil(distance)/*delay is the same as distance*/);
+
 				old_PosX = *((float*)(local_player_address + g_ki32_WorldPosition_Self[0]));
 				old_PosY = *((float*)(local_player_address + g_ki32_WorldPosition_Self[1]));
 				old_PosZ = *((float*)(local_player_address + g_ki32_WorldPosition_Self[2]));
-				BDO::g_b_navigation_record_check = true;
-			}
-			if (BDO::g_b_navigation_record_check)
-			{
-				new_PosX = *((float*)(local_player_address + g_ki32_WorldPosition_Self[0]));
-				new_PosY = *((float*)(local_player_address + g_ki32_WorldPosition_Self[1]));
-				new_PosZ = *((float*)(local_player_address + g_ki32_WorldPosition_Self[2]));
-				float distance = sqrt((new_PosX - old_PosX) * (new_PosX - old_PosX) + (new_PosY - old_PosY) * (new_PosY - old_PosY) + (new_PosZ - old_PosZ) * (new_PosZ - old_PosZ));
-				if (distance >= 150) //log the position if the distance is at least 150
-				{
-					fLog("%f, %f, %f, 0, %.0f", new_PosX, new_PosY + 50, new_PosZ, ceil(distance)/*delay is the same as distance*/);
-					BDO::g_b_navigation_record_check = false;
-				}
 			}
 		}
-		else
-			BDO::g_b_navigation_record_check = false;
-
-		uint64_t &local_player_address = *((uint64_t*)g_kuip_LocalPlayer);
-		uint64_t &character_control_address = *((uint64_t*)(local_player_address + g_ki32_CharacterController));
-		uint64_t &character_scene_address = *((uint64_t*)(character_control_address + g_ki32_CharacterScene));
 
 		//load Lua mod, wait 10seconds before auto load (change last tick)
-		if (!BDO::g_b_game_loaded_first_time && BDO::g_b_is_ready_to_play && TimerFunction(10000))
+		if (!BDO::g_bGameLoadedFirstTime && BDO::g_bIsReadyToPlay && TimerFunction(10000))
 		{
-			std::string path = GetDirectoryFile("lua\\");
+			std::string path = GetDirectoryFile(XorStringA("lua\\"));
 			std::string listOfLuaMods;
-			for (auto& listOfFiles : fs::directory_iterator(path))
+			for (const auto& listOfFiles : fs::directory_iterator(path))
 			{
 				listOfLuaMods = listOfFiles.path().string();
-				LuaExecutor("loadfile([[" + listOfLuaMods + "]])()");
+				LuaExecutor(XorStringA("loadfile([[") + listOfLuaMods + XorStringA("]])()"));
 			}
-			BDO::g_b_game_loaded_first_time = true;
+			BDO::g_bGameLoadedFirstTime = true;
 		}
 
-		if (BDO::g_i32_lifeskill_buff == 0)
+		if (BDO::Character::selfBuffsType == 0)
 		{
 			//5 bars on all passive lifeskill + crit and luck
 			*((int*)(local_player_address + g_ki32_Critical)) = 5;
@@ -2395,7 +1972,7 @@ void BaseFunctions()
 			*((int*)(local_player_address + g_ki32_Fishing)) = 5;
 			*((int*)(local_player_address + g_ki32_Gathering)) = 5;
 		}
-		else if (BDO::g_i32_lifeskill_buff == 1)
+		else if (BDO::Character::selfBuffsType == 1)
 		{
 			//7 bars on all passive lifeskill + crit and luck
 			*((int*)(local_player_address + g_ki32_Critical)) = 7;
@@ -2403,190 +1980,191 @@ void BaseFunctions()
 			*((int*)(local_player_address + g_ki32_Fishing)) = 7;
 			*((int*)(local_player_address + g_ki32_Gathering)) = 7;
 		}
+	}
+	//Check if vehicle exist and if its channel/character switching
+	if (*BDO::g_pLocalVehicle && BDO::g_bIsReadyToPlay)
+	{
+		uintptr_t& vehicle_base_address = *BDO::g_pLocalVehicle;
 
-		if (!BDO::g_b_character_activation || PlayersDetection(BDO::g_b_player_detection_overwrite))
+		uint32_t& acceleration = *((uint32_t*)(vehicle_base_address + g_ki32_mount_accel));
+		uint32_t& speed = *((uint32_t*)(vehicle_base_address + g_ki32_mount_speed));
+		uint32_t& turn = *((uint32_t*)(vehicle_base_address + g_ki32_mount_turn));
+		uint32_t& brake = *((uint32_t*)(vehicle_base_address + g_ki32_mount_brake));
+
+		if (ActorsDetection(BDO::Character::playerDetectorOverwrite) || !BDO::Vehicle::activation)
 		{
-			memcpy(BDO::g_btp_patch_speed, BDO::g_bt_speed_normal, sizeof(BDO::g_bt_speed_normal));
-			memcpy(BDO::g_btp_no_cooldown, BDO::g_bt_cooldown_normal, sizeof(BDO::g_bt_cooldown_normal));
+			acceleration = 1490000;
+			speed = 1590000;
+			turn = 1450000;
+			brake = 1450000;
 
-			*((float*)(character_scene_address + g_ki32_CharacterAnimation)) = 1.0f; //restore default animation speed
-
-			if (!BDO::g_b_character_activation)
+			if (!BDO::Vehicle::activation)
 			{
-				BDO::g_f_jump_height = *((float*)(character_control_address + g_ki32_JumpHeight)); //restore default jump height
-				BDO::g_f_character_animation_speed = 1.0f;
+				BDO::Vehicle::acceleration = 149;
+				BDO::Vehicle::speed = 159;
+				BDO::Vehicle::turn = 145;
+				BDO::Vehicle::brake = 145;
 			}
 		}
-		else
+		else if (BDO::Vehicle::activation)
 		{
-			//movement type
-			if (BDO::g_i32_movement_type == 0)
-				memcpy(BDO::g_btp_patch_speed, BDO::g_bt_speed_travel, sizeof(BDO::g_bt_speed_travel));
-			else if (BDO::g_i32_movement_type == 1)
-				memcpy(BDO::g_btp_patch_speed, BDO::g_bt_speed_grind, sizeof(BDO::g_bt_speed_grind));
-			else
-				memcpy(BDO::g_btp_patch_speed, BDO::g_bt_speed_normal, sizeof(BDO::g_bt_speed_normal));
-
-
-			if (BDO::g_b_no_cooldown)
-				memcpy(BDO::g_btp_no_cooldown, BDO::g_bt_cooldown_reduced, sizeof(BDO::g_bt_cooldown_reduced));
-			else
-				memcpy(BDO::g_btp_no_cooldown, BDO::g_bt_cooldown_normal, sizeof(BDO::g_bt_cooldown_normal));
-
-			*((float*)(character_control_address + g_ki32_JumpHeight)) = BDO::g_f_jump_height;
-
-			if (BDO::g_b_character_animation_lock)
-				*((float*)(character_scene_address + g_ki32_CharacterAnimation)) = FLT_MAX;
-			else if (!BDO::g_b_character_animation_lock && entity.AnimationCheck(0, "")) //activate only when attacking
-				*((float*)(character_scene_address + g_ki32_CharacterAnimation)) = BDO::g_f_character_animation_speed;
-			else
-				*((float*)(character_scene_address + g_ki32_CharacterAnimation)) = 1.0f;
+			acceleration = BDO::Vehicle::acceleration * 10000;
+			speed = BDO::Vehicle::speed * 10000;
+			turn = BDO::Vehicle::turn * 10000;
+			brake = BDO::Vehicle::brake * 10000;
 		}
 	}
 }
 
 void ShowMainMenu(bool* panel_open)
 {
-	ImGui::SetNextWindowSize(ImVec2(500, 495));
-	if (ImGui::Begin("Main Menu", panel_open, ImGuiWindowFlags_NoResize))
+	//ImGui::SetNextWindowSize(ImVec2(500, 495));
+	if (ImGui::Begin(XorStringA("Main Menu"), panel_open, ImGuiWindowFlags_AlwaysAutoResize))
 	{
-		if (ImGui::Button("End Game", ImVec2(120, 20)))
+		if (ImGui::Button(XorStringA("End Game"), ImVec2(120, 20)))
 		{
 			ExitProcess(0);
 		}
 		ImGui::SameLine();
-		if (ImGui::Button("Minimize", ImVec2(120, 20)))
+		if (ImGui::Button(XorStringA("Minimize"), ImVec2(120, 20)))
 		{
 			LuaExecutor(XorStringA("ToClient_CheckTrayIcon()"));
 		}
 		ImGui::SameLine();
-		if (ImGui::Button("Load Mods", ImVec2(120, 20)))
+		if (ImGui::Button(XorStringA("Load Mods"), ImVec2(120, 20)))
 		{
 			//lua script/filesystem
-			std::string path = GetDirectoryFile("lua\\");
+			std::string path = GetDirectoryFile(XorStringA("lua\\"));
 			std::string listOfLuaMods;
 			for (auto& listOfFiles : fs::directory_iterator(path))
 			{
 				listOfLuaMods = listOfFiles.path().string();
-				LuaExecutor("loadfile([[" + listOfLuaMods + "]])()");
+				LuaExecutor(XorStringA("loadfile([[") + listOfLuaMods + XorStringA("]])()"));
 			}
 		}
 		ImGui::SameLine();
-		if (ImGui::Button("Reload UI", ImVec2(120, 20)))
+		if (ImGui::Button(XorStringA("Reload UI"), ImVec2(120, 20)))
 		{
 			LuaExecutor(XorStringA("ToClient_excuteReloadUI()"));
 		}
 
-		if (ImGui::CollapsingHeader("Lua Console"))
+		if (ImGui::CollapsingHeader(XorStringA("Lua Console")))
 		{
-			static char str0[128];
-			ImGui::PushItemWidth(380);
-			ImGui::InputText("", str0, IM_ARRAYSIZE(str0));
+			static char str0[256];
+			ImGui::PushItemWidth(ImGui::GetContentRegionAvailWidth() * 0.7455f);
+			ImGui::InputText(XorStringA(""), str0, IM_ARRAYSIZE(str0));
+			ImGui::PopItemWidth();
 			ImGui::SameLine();
-			if (ImGui::Button("EXECUTE", ImVec2(100, 20)))
+			if (ImGui::Button(XorStringA("EXECUTE"), ImVec2(120, 20)))
 			{
 				std::string lua_message = str0;
-				LuaExecutor(("%s", lua_message.c_str()));
+				LuaExecutor((XorStringA("%s"), lua_message.c_str()));
 				str0[0] = 0;
 			}
-			if (ImGui::Button("Revive to Node", ImVec2(120, 20)))
+			if (ImGui::Button(XorStringA("Revive to Node"), ImVec2(120, 20)))
 			{
 				LuaExecutor(XorStringA("deadMessage_RevivalExploration_Confirm()"));
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("Revive to Town", ImVec2(120, 20)))
+			if (ImGui::Button(XorStringA("Revive to Town"), ImVec2(120, 20)))
 			{
 				LuaExecutor(XorStringA("deadMessage_RevivalVillage_Confirm()"));
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("RBF Suicide", ImVec2(120, 20)))
+			if (ImGui::Button(XorStringA("RBF Suicide"), ImVec2(120, 20)))
 			{
 				std::thread(RBFSuicide).detach();
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("BA Suicide", ImVec2(120, 20)))
+			if (ImGui::Button(XorStringA("BA Suicide"), ImVec2(120, 20)))
 			{
 				std::thread(BASuicide).detach();
 			}
-			if (ImGui::Button("WAIT", ImVec2(120, 20)))
+			if (ImGui::Button(XorStringA("MoveTo Fishing"), ImVec2(120, 20)))
 			{
-				LuaExecutor(XorStringA("getSelfPlayer():setActionChart('WAIT')"));
+				LuaExecutor(XorStringA("MoveTo_Fishing()"));
+				//LuaExecutor(XorStringA("getSelfPlayer():setActionChart('WAIT')"));
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("Mount Inv", ImVec2(120, 20)))
+			if (ImGui::Button(XorStringA("Join TB"), ImVec2(120, 20)))
 			{
-				LuaExecutor(XorStringA("ServantInventory_OpenAll()"));
+				LuaExecutor(XorStringA("ToClient_joinPersonalBattle()"));
+				//LuaExecutor(XorStringA("ServantInventory_OpenAll()"));
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("Join RBF", ImVec2(120, 20)))
+			if (ImGui::Button(XorStringA("Join RBF"), ImVec2(120, 20)))
 			{
 				LuaExecutor(XorStringA("ToClient_JoinLocalWar()"));
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("Join BA", ImVec2(120, 20)))
+			if (ImGui::Button(XorStringA("Join BA"), ImVec2(120, 20)))
 			{
 				LuaExecutor(XorStringA("ToClient_JoinPvpBattleGround()"));
 			}
 		}
-		if (ImGui::CollapsingHeader("Character"))
+		if (ImGui::CollapsingHeader(XorStringA("Character")))
 		{
-			ImGui::Checkbox("Activation", &BDO::g_b_character_activation);
+			ImGui::Checkbox(XorStringA("Activation"), &BDO::Character::activation);
 			ImGui::SameLine();
-			ImGui::Checkbox("Overwrite", &BDO::g_b_player_detection_overwrite);
+			ImGui::Checkbox(XorStringA("Overwrite"), &BDO::Character::playerDetectorOverwrite);
 			ImGui::SameLine();
-			ImGui::Checkbox("noCD", &BDO::g_b_no_cooldown);
+			ImGui::Checkbox(XorStringA("noCD"), &BDO::Character::noCooldown);
 			ImGui::SameLine();
-			ImGui::PushItemWidth(100);
-			ImGui::Combo("Movement Type", &BDO::g_i32_movement_type, BDO::g_cp_which_movement_type, IM_ARRAYSIZE(BDO::g_cp_which_movement_type));
-			ImGui::PushItemWidth(ImGui::GetContentRegionAvailWidth() * 0.65f);
-			ImGui::SliderFloat("Super Jump", &BDO::g_f_jump_height, 0.0f, 2500.0f);
-			ImGui::SliderFloat("Character Speed", &BDO::g_f_character_animation_speed, 0.0f, 10.0f); //character_speed
-			ImGui::Text("Bypass Obstacle");
-			if (ImGui::Button("Normal", ImVec2(50, 20)))
+			ImGui::PushItemWidth(100.0f);
+			ImGui::Combo(XorStringA("Movement Type"), &BDO::Character::movementType, BDO::Character::movementTypeList, IM_ARRAYSIZE(BDO::Character::movementTypeList));
+			ImGui::PopItemWidth();
+			ImGui::PushItemWidth(ImGui::GetContentRegionAvailWidth() * 0.75f);
+			ImGui::SliderFloat(XorStringA("Super Jump"), &BDO::Character::jumpHeight, 0.0f, 2500.0f);
+			ImGui::SliderFloat(XorStringA("Character Speed"), &BDO::Character::animationSpeed, 0.0f, 10.0f); //character_speed
+			ImGui::PopItemWidth();
+			ImGui::Text(XorStringA("Ignore Collision"));
+			if (ImGui::Button(XorStringA("Normal"), ImVec2(50, 20)))
 			{
-				memcpy(BDO::g_btp_bypass_obstacle, BDO::g_bt_obstacle_normal, sizeof(BDO::g_bt_obstacle_normal));
+				memcpy(BDO::g_ucpIgnoreCollision, BDO::g_ucCollision_Normal, sizeof(BDO::g_ucCollision_Normal));
 			}
 			ImGui::SameLine(0, 5);
-			if (ImGui::Button("Wall", ImVec2(50, 20)))
+			if (ImGui::Button(XorStringA("Wall"), ImVec2(50, 20)))
 			{
-				memcpy(BDO::g_btp_bypass_obstacle, BDO::g_bt_obstacle_wall, sizeof(BDO::g_bt_obstacle_wall));
+				memcpy(BDO::g_ucpIgnoreCollision, BDO::g_ucCollision_Wall, sizeof(BDO::g_ucCollision_Wall));
 			}
 			ImGui::SameLine(0, 5);
-			if (ImGui::Button("Ground", ImVec2(50, 20)))
+			if (ImGui::Button(XorStringA("Ground"), ImVec2(50, 20)))
 			{
-				memcpy(BDO::g_btp_bypass_obstacle, BDO::g_bt_obstacle_ground, sizeof(BDO::g_bt_obstacle_ground));
+				memcpy(BDO::g_ucpIgnoreCollision, BDO::g_ucCollision_Ground, sizeof(BDO::g_ucCollision_Ground));
 			}
 			ImGui::SameLine(0, 5);
-			ImGui::PushItemWidth(ImGui::GetContentRegionAvailWidth() * 0.65f);
-			ImGui::Combo("Self Buffs", &BDO::g_i32_lifeskill_buff, BDO::g_cp_which_lifeskill_buff, IM_ARRAYSIZE(BDO::g_cp_which_lifeskill_buff));
+			ImGui::PushItemWidth(ImGui::GetContentRegionAvailWidth() * 0.75f);
+			ImGui::Combo(XorStringA("Self Buffs"), &BDO::Character::selfBuffsType, BDO::Character::selfBuffsTypeList, IM_ARRAYSIZE(BDO::Character::selfBuffsTypeList));
+			ImGui::PopItemWidth();
 		}
-		if (ImGui::CollapsingHeader("Grinder"))
+		if (ImGui::CollapsingHeader(XorStringA("Grinder")))
 		{
-			ImGui::Checkbox("Record path", &BDO::g_b_navigation_record);
+			ImGui::Checkbox(XorStringA("Record path"), &BDO::Grinder::recordPath);
 			ImGui::SameLine();
-			ImGui::PushItemWidth(150);
-			ImGui::InputInt("Delay", &BDO::g_i32_navigation_delay);
+			ImGui::PushItemWidth(150.0f);
+			ImGui::InputInt(XorStringA("Delay"), &BDO::Grinder::recordPathDelay);
+			ImGui::PopItemWidth();
 			ImGui::SameLine();
-			if (ImGui::Button("Grab WayPoints", ImVec2(185, 20)))
+			if (ImGui::Button(XorStringA("Grab WayPoints"), ImVec2(185, 20)))
 			{
-				uint64_t local_player_address = *((uint64_t*)g_kuip_LocalPlayer);
+				uint64_t& local_player_address = *((uint64_t*)g_kuip_LocalPlayer);
 
-				float getPosX = *((float*)(local_player_address + g_ki32_WorldPosition_Self[0]));
-				float getPosY = *((float*)(local_player_address + g_ki32_WorldPosition_Self[1]));
-				float getPosZ = *((float*)(local_player_address + g_ki32_WorldPosition_Self[2]));
+				float& getPosX = *((float*)(local_player_address + g_ki32_WorldPosition_Self[0]));
+				float& getPosY = *((float*)(local_player_address + g_ki32_WorldPosition_Self[1]));
+				float& getPosZ = *((float*)(local_player_address + g_ki32_WorldPosition_Self[2]));
 
-				fLog("%f, %f, %f, 0, %d", getPosX, getPosY, getPosZ, BDO::g_i32_navigation_delay);
+				fLog("%f, %f, %f, 0, %d", getPosX, getPosY, getPosZ, BDO::Grinder::recordPathDelay);
 			}
-			ImGui::Checkbox("Show Waypoints", &BDO::g_b_navigation_show_waypoints);
+			ImGui::Checkbox(XorStringA("Show Waypoints"), &BDO::Grinder::showSavedPath);
 			ImGui::SameLine(200.0f);
-			ImGui::Text("Last WayPoint: %d", BDO::g_i32_navigation_lastpoint);
+			ImGui::Text(XorStringA("Last WayPoint: %d"), BDO::Grinder::lastWaypoint);
 
 			//custom profiles loader starts
 			static std::vector<std::string>found_profiles;
-			if (ImGui::Button("Scan for Profiles", ImVec2(485, 20)))
+			if (ImGui::Button(XorStringA("Scan for Profiles"), ImVec2(485, 20)))
 			{
 				found_profiles.clear();
-				std::string path = GetDirectoryFile("grind\\");
+				std::string path = GetDirectoryFile(XorStringA("grind\\"));
 				for (auto& listOfFiles : fs::directory_iterator(path))
 				{
 					std::string listOfGrindProfiles = listOfFiles.path().filename().string();
@@ -2595,7 +2173,8 @@ void ShowMainMenu(bool* panel_open)
 				}
 			}
 			static const char* current_item = NULL;
-			if (ImGui::BeginCombo("Profiles", current_item)) // The second parameter is the label previewed before opening the combo.
+			ImGui::PushItemWidth(150.0f);
+			if (ImGui::BeginCombo(XorStringA("Profiles"), current_item)) // The second parameter is the label previewed before opening the combo.
 			{
 				for (const auto& profiles : found_profiles)
 				{
@@ -2608,72 +2187,80 @@ void ShowMainMenu(bool* panel_open)
 				ImGui::EndCombo();
 			}
 			ImGui::SameLine(252.0f);
-			if (ImGui::Button("Load Profile", ImVec2(240, 20)))
+			if (ImGui::Button(XorStringA("Load Profile"), ImVec2(240, 20)))
 			{
 				g_v_waypoints_file.clear();
 				float ptX, ptY, ptZ;
 				int type, delay;
 
 				std::ifstream wptsfin;
-				std::string words = "";
-				std::string path = GetDirectoryFile("grind\\");
-				wptsfin.open(path + current_item, std::ifstream::in);
-				while (wptsfin.good())
+				std::string words = XorStringA("");
+				std::string path = GetDirectoryFile(XorStringA("grind\\"));
+				if (current_item != NULL)
 				{
-					wptsfin >> ptX >> words >> ptY >> words >> ptZ >> words >> type >> words >> delay;
-					g_v_waypoints_file.emplace_back(ptX, ptY, ptZ, type, delay);
+					wptsfin.open(path + current_item, std::ifstream::in);
+					while (wptsfin.good())
+					{
+						wptsfin >> ptX >> words >> ptY >> words >> ptZ >> words >> type >> words >> delay;
+						g_v_waypoints_file.emplace_back(ptX, ptY, ptZ, type, delay);
+					}
+					wptsfin.close();
+
+					LuaExecutor(XorStringA("Proc_ShowMessage_Ack('<PAColor0xFFB69A80>WayPoints <PAOldColor> <PAColor0xFF0099FF>Loaded<PAOldColor>')"));
 				}
-				wptsfin.close();
-
-				LuaExecutor(XorStringA("Proc_ShowMessage_Ack('<PAColor0xFFB69A80>WayPoints -<PAOldColor> <PAColor0xFF0099FF>Loaded<PAOldColor>')"));
+				else
+				{
+					LuaExecutor(XorStringA("Proc_ShowMessage_Ack('<PAColor0xFFB69A80>WayPoints <PAOldColor> <PAColor0xFF0099FF>Failed to Load<PAOldColor>')"));
+				}
 			}
-
 			//custom profiles loader ends
-			ImGui::Combo("Grinder Type", &BDO::g_i32_grinder_type, BDO::g_cp_which_grinder_type, IM_ARRAYSIZE(BDO::g_cp_which_grinder_type));
-			ImGui::SameLine(252.0f); 
-			if (ImGui::Button("Activate", ImVec2(240, 20)))
+			ImGui::Combo(XorStringA("Grinder Type"), &BDO::Grinder::grinderType, BDO::Grinder::grinderTypeList, IM_ARRAYSIZE(BDO::Grinder::grinderTypeList));
+			ImGui::SameLine(252.0f);
+			if (ImGui::Button(XorStringA("Activate"), ImVec2(240, 20)))
 			{
-				BDO::g_b_navigation_activate = true;
-				if(BDO::g_i32_grinder_type == 0)
+				BDO::Grinder::activate = true;
+				if (BDO::Grinder::grinderType == 0)
 					std::thread(GrinderWalk).detach();
 				else
 					std::thread(GrinderTeleport).detach();
 			}
+			ImGui::PopItemWidth();
 
-			ImGui::Checkbox("Activation", &BDO::g_b_navigation_activate);
+			ImGui::Checkbox(XorStringA("Activation"), &BDO::Grinder::activate);
 			ImGui::SameLine(150.0f);
-			ImGui::Checkbox("Pause", &BDO::g_b_navigation_pause);
+			ImGui::Checkbox(XorStringA("Pause"), &BDO::Grinder::pause);
 			ImGui::SameLine(300.0f);
-			ImGui::Checkbox("Reload Check", &BDO::g_b_navigation_reload_check);
+			ImGui::Checkbox(XorStringA("Reload Check"), &BDO::Grinder::reloadCheck);
 
-			ImGui::Checkbox("Animation Lock", &BDO::g_b_character_animation_lock);
+			ImGui::Checkbox(XorStringA("Animation Lock"), &BDO::Grinder::animationLock);
 			ImGui::SameLine(150.0f);
-			ImGui::Checkbox("Player Detection", &BDO::g_b_navigation_player_detection);
+			ImGui::Checkbox(XorStringA("Player Detection"), &BDO::Grinder::playerDetection);
 			ImGui::SameLine(300.0f);
-			ImGui::Checkbox("Monsters Detection", &BDO::g_b_navigation_monsters_detection);
-			ImGui::PushItemWidth(ImGui::GetContentRegionAvailWidth() * 0.65f);
-			ImGui::SliderFloat("Monsters Range", &BDO::g_f_monster_range, 300.0f, 700.0f);
-
-			ImGui::Checkbox("pet loot", &BDO::g_b_navigation_pet_loot);
+			ImGui::Checkbox(XorStringA("Monsters Detection"), &BDO::Grinder::monsterDetection);
+			ImGui::PushItemWidth(ImGui::GetContentRegionAvailWidth() * 0.75f);
+			ImGui::SliderFloat(XorStringA("Monsters Range"), &BDO::Grinder::monsterRange, 300.0f, 700.0f);
+			ImGui::PopItemWidth();
+			ImGui::Checkbox(XorStringA("pet loot"), &BDO::Grinder::petLoot);
 			ImGui::SameLine(150.0f);
-			ImGui::Checkbox("Teleport To Loot", &BDO::g_b_navigation_looting);
-			ImGui::PushItemWidth(ImGui::GetContentRegionAvailWidth() * 0.65f);
-			ImGui::SliderFloat("Loot Range", &BDO::g_f_loot_range, 250.0f, 600.0f);
+			ImGui::Checkbox(XorStringA("Teleport To Loot"), &BDO::Grinder::teleportLooting);
+			ImGui::PushItemWidth(ImGui::GetContentRegionAvailWidth() * 0.75f);
+			ImGui::SliderFloat(XorStringA("Loot Range"), &BDO::Grinder::teleportLootingRange, 250.0f, 600.0f);
+			ImGui::PopItemWidth();
 		}
-		if (ImGui::CollapsingHeader("Manufacture"))
+		if (ImGui::CollapsingHeader(XorStringA("Manufacture")))
 		{
-			ImGui::Checkbox("Activation", &BDO::g_b_auto_manufacture);
+			ImGui::Checkbox(XorStringA("Activation"), &BDO::Manufacture::activation);
 			ImGui::SameLine();
-			if (ImGui::Button("Load File", ImVec2(100, 20)))
+			if (ImGui::Button(XorStringA("Load File"), ImVec2(100, 20)))
 			{
 				//find items that can be proecssed
 				g_v_manufacture_file.clear();
 				uint16_t itemId;
 				std::string itemName, procType;
-				std::string endReading = "<end>";
+				std::string endReading = XorStringA("<end>");
 				std::string words = "";
 				std::ifstream manufacturefin;
-				manufacturefin.open(GetDirectoryFile("Manufacture.ini"), std::ifstream::in);
+				manufacturefin.open(GetDirectoryFile(XorStringA("Manufacture.ini")), std::ifstream::in);
 				std::getline(manufacturefin, itemName);
 				while (manufacturefin.good())
 				{
@@ -2682,128 +2269,83 @@ void ShowMainMenu(bool* panel_open)
 						break;
 					manufacturefin >> itemId >> words >> procType;
 					manufacturefin.ignore(1); //ignore newline
-					if (procType == "Shake")
-						g_v_manufacture_file.emplace_back(itemName, "SHAKE", BDOEnums::Shake, itemId);
-					else if (procType == "Grind")
-						g_v_manufacture_file.emplace_back(itemName, "GRIND", BDOEnums::Grind, itemId);
-					else if (procType == "Chop")
-						g_v_manufacture_file.emplace_back(itemName, "FIREWOOD", BDOEnums::Chop, itemId);
-					else if (procType == "Dry")
-						g_v_manufacture_file.emplace_back(itemName, "DRY", BDOEnums::Dry, itemId);
-					else if (procType == "Filter")
-						g_v_manufacture_file.emplace_back(itemName, "THINNING", BDOEnums::Filter, itemId);
-					else if (procType == "Heat")
-						g_v_manufacture_file.emplace_back(itemName, "HEAT", BDOEnums::Heat, itemId);
+					if (procType == XorStringA("Shake"))
+						g_v_manufacture_file.emplace_back(itemName, XorStringA("SHAKE"), BDOEnums::Shake, itemId);
+					else if (procType == XorStringA("Grind"))
+						g_v_manufacture_file.emplace_back(itemName, XorStringA("GRIND"), BDOEnums::Grind, itemId);
+					else if (procType == XorStringA("Chop"))
+						g_v_manufacture_file.emplace_back(itemName, XorStringA("FIREWOOD"), BDOEnums::Chop, itemId);
+					else if (procType == XorStringA("Dry"))
+						g_v_manufacture_file.emplace_back(itemName, XorStringA("DRY"), BDOEnums::Dry, itemId);
+					else if (procType == XorStringA("Filter"))
+						g_v_manufacture_file.emplace_back(itemName, XorStringA("THINNING"), BDOEnums::Filter, itemId);
+					else if (procType == XorStringA("Heat"))
+						g_v_manufacture_file.emplace_back(itemName, XorStringA("HEAT"), BDOEnums::Heat, itemId);
 				}
 				manufacturefin.close();
 
-				LuaExecutor(XorStringA("Proc_ShowMessage_Ack('<PAColor0xFFB69A80>Manufacture Filter -<PAOldColor> <PAColor0xFF0099FF>Loaded<PAOldColor>')"));
+				LuaExecutor(XorStringA("Proc_ShowMessage_Ack('<PAColor0xFFB69A80>Manufacture Filter <PAOldColor> <PAColor0xFF0099FF>Loaded<PAOldColor>')"));
 			}
-			if (ImGui::Button("push", ImVec2(100, 20)))
+			if (ImGui::Button(XorStringA("push"), ImVec2(100, 20)))
 			{
-				g_t_InventoryToWarehouse(0, 2, 10, *((uint32_t*)(g_kuip_PushPopItems))); //inventory to warehouse
+				LuaExecutor(XorStringA("inventoryToWarehouse(2, 1)"));
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("pull", ImVec2(100, 20)))
+			if (ImGui::Button(XorStringA("pull"), ImVec2(100, 20)))
 			{
-				g_t_WarehouseToInventory(2, 10, *((uint32_t*)(g_kuip_PushPopItems))); //warehouse to inventory
+				LuaExecutor(XorStringA("warehouseToInventory(2, 1)"));
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("debug command", ImVec2(100, 20)))
+			if (ImGui::Button(XorStringA("debug command"), ImVec2(100, 20)))
 			{
 				LuaExecutor(XorStringA("inventoryGrind(2)"));
 			}
 		}
-		if (ImGui::CollapsingHeader("MarketPlace"))
+		if (ImGui::CollapsingHeader(XorStringA("Fishing")))
 		{
-			ImGui::Checkbox("Activation", &BDO::g_b_auto_buy);
-			ImGui::SameLine();
-			if (ImGui::Button("Show Log", ImVec2(100, 20)))
-			{
-				BDO::g_b_show_market_log = !BDO::g_b_show_market_log;
-			}
-			ImGui::SameLine();
-			if (ImGui::Button("Load File", ImVec2(100, 20)))
-			{
-				g_v_market_items.clear();
-				std::string l_s_item_name;
-				uint32_t l_ui32_item_id;
-
-				std::string l_s_end_of_reading = "<end>";
-				std::ifstream marketfin;
-				marketfin.open(GetDirectoryFile("MarketItems.ini"), std::ifstream::in);
-				while (marketfin.good())
-				{
-					//Log("pass 1");
-					std::getline(marketfin, l_s_item_name, ',');
-					//Log("pass 2: %s", l_s_item_name.c_str());
-					if (l_s_item_name.find(l_s_end_of_reading) != std::string::npos)
-						break;
-					marketfin >> l_ui32_item_id;
-					//Log("pass 3: %d", l_ui32_item_id);
-					marketfin.ignore(1); //ignore newline
-					g_v_market_items.emplace_back(l_s_item_name, l_ui32_item_id);
-				}
-				marketfin.close();
-
-				LuaExecutor(XorStringA("Proc_ShowMessage_Ack('<PAColor0xFFB69A80>Buy From Market Items File<PAOldColor> - <PAColor0xFF0099FF>Loaded<PAOldColor>')"));
-			}
-			ImGui::SliderInt("Execution Interval", &BDO::g_i32_execution_interval, 1, 250);
-			ImGui::PushItemWidth(225);
-			ImGui::Combo("Current Town", &BDO::g_i32_territory_key, BDO::g_cp_which_town, IM_ARRAYSIZE(BDO::g_cp_which_town));
-			ImGui::Combo("Wallet Type", &BDO::g_i32_wallet_type, BDO::g_cp_which_wallet, IM_ARRAYSIZE(BDO::g_cp_which_wallet));
-			ImGui::Separator();
-			ImGui::Checkbox("Auto Sell", &BDO::g_b_auto_sell);
-			ImGui::Combo("Sell Type", &BDO::g_i32_sell_type, BDO::g_cp_sell_type, IM_ARRAYSIZE(BDO::g_cp_sell_type));
-			if (BDO::g_i32_sell_type == 3)
-			{
-				ImGui::SameLine();
-				ImGui::InputInt("Input Price", &BDO::g_i32_custom_price);
-			}
-			ImGui::InputInt("Input Target Item Market ID", &BDO::g_i32_market_sell_item_id);
+			ImGui::Checkbox(XorStringA("Activation"), &BDO::Fishing::activation);
+			ImGui::SameLine(175.0f);
+			ImGui::Checkbox(XorStringA("ShutDown On Full"), &BDO::Fishing::shutdownOnFull);
+			ImGui::SameLine(350.0f);
+			ImGui::PushItemWidth(ImGui::GetContentRegionAvailWidth() * 0.50f);
+			ImGui::SliderInt(XorStringA("Free Slots"), &BDO::Fishing::freeSlots, 0, 3);
+			ImGui::PopItemWidth();
+			ImGui::Checkbox(XorStringA("Automate Fishing"), &BDO::Fishing::automateFishing);
+			ImGui::SameLine(175.0f);
+			ImGui::Checkbox(XorStringA("Lock Position"), &BDO::Fishing::lockPosX);
+			ImGui::Combo(XorStringA("Predict Grade"), &BDO::Fishing::fishGrade, BDO::Fishing::fishGradeList, IM_ARRAYSIZE(BDO::Fishing::fishGradeList));
+			ImGui::SameLine(350.0f);
+			ImGui::Text(XorStringA("Current Fish Grade: %d"), BDO::Fishing::currentGrade);
 		}
-		if (ImGui::CollapsingHeader("Fishing"))
+		if (ImGui::CollapsingHeader(XorStringA("Vehicle")))
 		{
-			ImGui::Checkbox("Activation", &BDO::g_b_auto_fishing);
-			ImGui::SameLine(150.0f);
-			ImGui::Checkbox("Automate Fishing", &BDO::g_b_automate_fishing);
-			ImGui::Checkbox("relics only", &BDO::g_b_relics_only);
-			ImGui::SameLine(150.0f);
+			ImGui::Checkbox(XorStringA("Activation"), &BDO::Vehicle::activation);
+			ImGui::SameLine();
+			ImGui::Checkbox(XorStringA("Overwrite"), &BDO::Character::playerDetectorOverwrite);
 			ImGui::PushItemWidth(ImGui::GetContentRegionAvailWidth() * 0.65f);
-			ImGui::Combo("Predict Grade", &BDO::g_i32_predictGrade, BDO::g_cp_which_fish_Grade, IM_ARRAYSIZE(BDO::g_cp_which_fish_Grade));
-			ImGui::Checkbox("Clear Position", &BDO::g_b_clear_position);
-
+			ImGui::SliderInt(XorStringA("Vehicle Acceleration"), &BDO::Vehicle::acceleration, 100, 300);
+			ImGui::SliderInt(XorStringA("Vehicle Speed"), &BDO::Vehicle::speed, 100, 300);
+			ImGui::SliderInt(XorStringA("Vehicle Turn"), &BDO::Vehicle::turn, 100, 500);
+			ImGui::SliderInt(XorStringA("Vehicle Brake"), &BDO::Vehicle::brake, 100, 500);
+			ImGui::PopItemWidth();
 		}
-		if (ImGui::CollapsingHeader("Vehicle"))
+		if (ImGui::CollapsingHeader(XorStringA("Utilities")))
 		{
-			ImGui::Checkbox("Activation", &BDO::g_b_vehicle_activation);
-			ImGui::SameLine();
-			ImGui::Checkbox("Overwrite", &BDO::g_b_player_detection_overwrite);
-			ImGui::PushItemWidth(ImGui::GetContentRegionAvailWidth() * 0.65f);
-			ImGui::SliderInt("Vehicle Acceleration", &BDO::g_i32_vehicle_accel_slider, 100, 300);
-			ImGui::SliderInt("Vehicle Speed", &BDO::g_i32_vehicle_speed_slider, 100, 300);
-			ImGui::SliderInt("Vehicle Turn", &BDO::g_i32_vehicle_turn_slider, 100, 500);
-			ImGui::SliderInt("Vehicle Brake", &BDO::g_i32_vehicle_brake_slider, 100, 500);
-		}
-		if (ImGui::CollapsingHeader("Utilities"))
-		{
-			if (ImGui::Button("Escape", ImVec2(120, 20)))
+			if (ImGui::Button(XorStringA("Escape"), ImVec2(120, 20)))
 			{
 				LuaExecutor(XorStringA("callRescue()"));
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("Perm. COMPASS", ImVec2(120, 20)))
+			if (ImGui::Button(XorStringA("Perm. COMPASS"), ImVec2(120, 20)))
 			{
 				PatchNavigation();
 			}
-			ImGui::Checkbox("Reloaded UI check", &BDO::g_b_reloadedUI_check);
 			ImGui::SameLine();
-			ImGui::Checkbox("Auto Restore Workers", &BDO::g_b_worker_auto_restore);
-			ImGui::SameLine();
-			ImGui::Checkbox("Remove Desert Debuff", &BDO::g_b_remove_desert_debuff);
-			ImGui::Checkbox("debug", &BDO::g_b_debug);
-			ImGui::SameLine();
-			if (ImGui::Button("debugTest", ImVec2(100, 20)))
+			if (ImGui::Button(XorStringA("Toss Junk Items"), ImVec2(120, 20)))
+			{
+				TossAwayJunkItems();
+			}
+			if (ImGui::Button(XorStringA("debugTest"), ImVec2(120, 20)))
 			{
 				//std::string testing((char*)((g_kuip_NPCName)));
 				//cLog("NPC Name: %s", testing.c_str());
@@ -2811,36 +2353,37 @@ void ShowMainMenu(bool* panel_open)
 				DebugTest();
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("print ani name", ImVec2(100, 20)))
+			if (ImGui::Button(XorStringA("print ani name"), ImVec2(120, 20)))
 			{
 				PrintAnimationIDandNames();
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("Test Lua Hook", ImVec2(100, 20)))
+			if (ImGui::Button(XorStringA("Test Lua Hook"), ImVec2(120, 20)))
 			{
 				//LuaPipe("sumtotalWeight", false);
 				g_b_lua_pipe_call = true;
-				cLog("hp: %d", BDOLuaVariables::currenthp);
-			}
-			Entity entity;
-			if (ImGui::Button("x+5", ImVec2(120, 20)))
-			{
-				entity.Teleportation(5.0f, 0.0f, 0.0f, 1, 1000);
+				cLog(XorStringA("hp: %d"), BDOLuaVariables::currenthp);
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("x-5", ImVec2(120, 20)))
+			ImGui::Checkbox(XorStringA("debug"), &BDO::g_bDebug);
+			if (ImGui::Button(XorStringA("x+5"), ImVec2(120, 20)))
 			{
-				entity.Teleportation(-5.0f, 0.0f, 0.0f, 1, 1000);
+				LocalPlayer::LocalPlayerContext::GetInstance().Teleportation(5.0f, 0.0f, 0.0f, 1, 1000);
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("z+5", ImVec2(120, 20)))
+			if (ImGui::Button(XorStringA("x-5"), ImVec2(120, 20)))
 			{
-				entity.Teleportation(0.0f, 0.0f, 5.0f, 1, 1000);
+				LocalPlayer::LocalPlayerContext::GetInstance().Teleportation(-5.0f, 0.0f, 0.0f, 1, 1000);
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("z-5", ImVec2(120, 20)))
+			if (ImGui::Button(XorStringA("z+5"), ImVec2(120, 20)))
 			{
-				entity.Teleportation(0.0f, 0.0f, -5.0f, 1, 1000);
+				LocalPlayer::LocalPlayerContext::GetInstance().Teleportation(0.0f, 0.0f, 5.0f, 1, 1000);
+			}
+			ImGui::SameLine();
+			if (ImGui::Button(XorStringA("z-5"), ImVec2(120, 20)))
+			{
+				LocalPlayer::LocalPlayerContext::GetInstance().Teleportation(0.0f, 0.0f, -5.0f, 1, 1000);
 			}
 		}
 	}
@@ -2868,20 +2411,19 @@ void GetFPS(bool* panel_open)
 }
 void ESPMenu(bool* panel_open) //extrasensory perception aka ESP
 {
-	ImGui::SetNextWindowSize(ImVec2(340, 180));
-	if (ImGui::Begin("ESP", panel_open, ImGuiWindowFlags_NoResize))
+	//ImGui::SetNextWindowSize(ImVec2(340, 180));
+	if (ImGui::Begin(XorStringA("ESP"), panel_open, ImGuiWindowFlags_AlwaysAutoResize))
 	{
-		ImGui::Combo("ESP Target", &BDO::g_i32_esp_target, BDO::g_cp_which_ESP_target, IM_ARRAYSIZE(BDO::g_cp_which_ESP_target));
-		ImGui::SliderInt("Draw Interval", &BDO::g_i32_esp_draw_interval, 0, 15);
-		if (ImGui::Button("Load ESP Targets File", ImVec2(300, 20)))
+		ImGui::Combo(XorStringA("ESP Target"), &BDO::ESP::targetType, BDO::ESP::targetTypeList, IM_ARRAYSIZE(BDO::ESP::targetTypeList));
+		if (ImGui::Button(XorStringA("Load ESP Targets File"), ImVec2(300, 20)))
 		{
 			g_um_esp_actor_id.clear();
 			std::string l_s_target_name;
 			uint32_t l_ui32_target_id;
 
-			std::string l_s_end_of_reading = "<end>";
+			std::string l_s_end_of_reading = XorStringA("<end>");
 			std::ifstream espfin;
-			espfin.open(GetDirectoryFile("ESPTargets.ini"), std::ifstream::in);
+			espfin.open(GetDirectoryFile(XorStringA("ESPTargets.ini")), std::ifstream::in);
 			while (espfin.good())
 			{
 				std::getline(espfin, l_s_target_name, ',');
@@ -2893,23 +2435,23 @@ void ESPMenu(bool* panel_open) //extrasensory perception aka ESP
 			}
 			espfin.close();
 
-			LuaExecutor(XorStringA("Proc_ShowMessage_Ack('<PAColor0xFFB69A80>ESP Targets -<PAOldColor> <PAColor0xFF0099FF>Loaded<PAOldColor>')"));
+			LuaExecutor(XorStringA("Proc_ShowMessage_Ack('<PAColor0xFFB69A80>ESP Targets <PAOldColor> <PAColor0xFF0099FF>Loaded<PAOldColor>')"));
 		}
-		ImGui::Checkbox("ESP", &BDO::g_b_show_esp);
+		ImGui::Checkbox(XorStringA("ESP"), &BDO::ESP::drawESP);
 		ImGui::SameLine(100.0f);
-		ImGui::Checkbox("WorldMap", &BDO::g_b_show_world_map);
+		ImGui::Checkbox(XorStringA("WorldMap"), &BDO::ESP::drawWorldMap);
 
-		ImGui::Checkbox("Line", &BDO::g_b_show_esp_line);
+		ImGui::Checkbox(XorStringA("Line"), &BDO::ESP::drawESP_line);
 		ImGui::SameLine(100.0f);
-		ImGui::Checkbox("Circle", &BDO::g_b_show_esp_circle);
+		ImGui::Checkbox(XorStringA("Circle"), &BDO::ESP::drawESP_circle);
 		ImGui::SameLine(200.0f);
-		ImGui::Checkbox("Name", &BDO::g_b_show_esp_name);
+		ImGui::Checkbox(XorStringA("Name"), &BDO::ESP::drawESP_name);
 
-		ImGui::Checkbox("ID", &BDO::g_b_show_esp_id);
+		ImGui::Checkbox(XorStringA("ID"), &BDO::ESP::drawESP_id);
 		ImGui::SameLine(100.0f);
-		ImGui::Checkbox("Level", &BDO::g_b_show_esp_level);
+		ImGui::Checkbox(XorStringA("Level"), &BDO::ESP::drawESP_level);
 		ImGui::SameLine(200.0f);
-		ImGui::Checkbox("Distance", &BDO::g_b_show_esp_distance);
+		ImGui::Checkbox(XorStringA("Distance"), &BDO::ESP::drawESP_distance);
 	}
 	ImGui::End();
 }
@@ -2922,78 +2464,79 @@ void ScreenshotUitility(bool* panel_open)
 	*/
 	uint64_t camAddress = *((uint64_t*)(*((uint64_t*)(g_kuip_Base)) + 0x30));
 
-	if (BDO::g_b_cam_activation)
+	if (BDO::Camera::activation)
 	{
 		//camera
-		if (BDO::g_b_cam_advanced)
+		if (BDO::Camera::advanced)
 		{
-			*((float*)(camAddress + 0x5C)) = BDO::g_f_cam_view1;
-			*((float*)(camAddress + 0x68)) = BDO::g_f_cam_view2;
+			*((float*)(camAddress + 0x5C)) = BDO::Camera::view1;
+			*((float*)(camAddress + 0x68)) = BDO::Camera::view2;
 		}
 		else
 		{
-			BDO::g_f_cam_view1 = *((float*)(camAddress + 0x5C));
-			BDO::g_f_cam_view2 = *((float*)(camAddress + 0x68));
+			BDO::Camera::view1 = *((float*)(camAddress + 0x5C));
+			BDO::Camera::view2 = *((float*)(camAddress + 0x68));
 		}
-		*((float*)(camAddress + 0x70)) = BDO::g_f_cam_view3;
-		*((float*)(camAddress + 0x74)) = BDO::g_f_cam_view4;
+		*((float*)(camAddress + 0x70)) = BDO::Camera::view3;
+		*((float*)(camAddress + 0x74)) = BDO::Camera::view4;
 
 		//screenshot
-		*((float*)(camAddress + 0xA4)) = BDO::g_f_cam_screenshot1;
-		*((float*)(camAddress + 0xA8)) = BDO::g_f_cam_screenshot2;
-		*((float*)(camAddress + 0xAC)) = BDO::g_f_cam_screenshot3;
-		*((float*)(camAddress + 0xC8)) = BDO::g_f_cam_screenshot4;
-		*((float*)(camAddress + 0xD0)) = BDO::g_f_cam_screenshot5;
+		*((float*)(camAddress + 0xA4)) = BDO::Camera::screenshot1;
+		*((float*)(camAddress + 0xA8)) = BDO::Camera::screenshot2;
+		*((float*)(camAddress + 0xAC)) = BDO::Camera::screenshot3;
+		*((float*)(camAddress + 0xC8)) = BDO::Camera::screenshot4;
+		*((float*)(camAddress + 0xD0)) = BDO::Camera::screenshot5;
 	}
 	else
 	{
 		//camera
-		BDO::g_f_cam_view1 = *((float*)(camAddress + 0x5C));
-		BDO::g_f_cam_view2 = *((float*)(camAddress + 0x68));
-		BDO::g_f_cam_view3 = *((float*)(camAddress + 0x70));
-		BDO::g_f_cam_view4 = *((float*)(camAddress + 0x74));
+		BDO::Camera::view1 = *((float*)(camAddress + 0x5C));
+		BDO::Camera::view2 = *((float*)(camAddress + 0x68));
+		BDO::Camera::view3 = *((float*)(camAddress + 0x70));
+		BDO::Camera::view4 = *((float*)(camAddress + 0x74));
 
 		//screenshot
-		BDO::g_f_cam_screenshot1 = *((float*)(camAddress + 0xA4));
-		BDO::g_f_cam_screenshot2 = *((float*)(camAddress + 0xA8));
-		BDO::g_f_cam_screenshot3 = *((float*)(camAddress + 0xAC));
-		BDO::g_f_cam_screenshot4 = *((float*)(camAddress + 0xC8));
-		BDO::g_f_cam_screenshot5 = *((float*)(camAddress + 0xD0));
+		BDO::Camera::screenshot1 = *((float*)(camAddress + 0xA4));
+		BDO::Camera::screenshot2 = *((float*)(camAddress + 0xA8));
+		BDO::Camera::screenshot3 = *((float*)(camAddress + 0xAC));
+		BDO::Camera::screenshot4 = *((float*)(camAddress + 0xC8));
+		BDO::Camera::screenshot5 = *((float*)(camAddress + 0xD0));
 	}
 
-	ImGui::SetNextWindowSize(ImVec2(250, 275));
-	if (ImGui::Begin("Screenshot Uitility", panel_open, ImGuiWindowFlags_NoResize))
+	//ImGui::SetNextWindowSize(ImVec2(250, 275));
+	if (ImGui::Begin(XorStringA("Screenshot Uitility"), panel_open, ImGuiWindowFlags_AlwaysAutoResize))
 	{
-		ImGui::Checkbox("Activation", &BDO::g_b_cam_activation);
+		ImGui::Checkbox(XorStringA("Activation"), &BDO::Camera::activation);
 		ImGui::SameLine(0, 38.5f);
-		ImGui::Checkbox("Advanced", &BDO::g_b_cam_advanced);
+		ImGui::Checkbox(XorStringA("Advanced"), &BDO::Camera::advanced);
 		ImGui::PushItemWidth(150);
-		ImGui::SliderFloat("Cam 1", &BDO::g_f_cam_view1, -2, 2);
-		ImGui::SliderFloat("Cam 2", &BDO::g_f_cam_view2, -3.5f, 3.5f);
-		ImGui::SliderFloat("Cam 3", &BDO::g_f_cam_view3, -1, 1);
-		ImGui::SliderFloat("Cam 4", &BDO::g_f_cam_view4, -1, 1);
-		ImGui::SliderFloat("Screenshot 1", &BDO::g_f_cam_screenshot1, -40, 40);
-		ImGui::SliderFloat("Screenshot 2", &BDO::g_f_cam_screenshot2, -40, 40);
-		ImGui::SliderFloat("Screenshot 3", &BDO::g_f_cam_screenshot3, -40, 40);
-		ImGui::SliderFloat("Screenshot 4", &BDO::g_f_cam_screenshot4, -40, 40);
-		ImGui::SliderFloat("Screenshot 5", &BDO::g_f_cam_screenshot5, -40, 40);
+		ImGui::SliderFloat(XorStringA("Cam 1"), &BDO::Camera::view1, -2, 2);
+		ImGui::SliderFloat(XorStringA("Cam 2"), &BDO::Camera::view2, -3.5f, 3.5f);
+		ImGui::SliderFloat(XorStringA("Cam 3"), &BDO::Camera::view3, -1, 1);
+		ImGui::SliderFloat(XorStringA("Cam 4"), &BDO::Camera::view4, -1, 1);
+		ImGui::SliderFloat(XorStringA("Screenshot 1"), &BDO::Camera::screenshot1, -40, 40);
+		ImGui::SliderFloat(XorStringA("Screenshot 2"), &BDO::Camera::screenshot2, -40, 40);
+		ImGui::SliderFloat(XorStringA("Screenshot 3"), &BDO::Camera::screenshot3, -40, 40);
+		ImGui::SliderFloat(XorStringA("Screenshot 4"), &BDO::Camera::screenshot4, -40, 40);
+		ImGui::SliderFloat(XorStringA("Screenshot 5"), &BDO::Camera::screenshot5, -40, 40);
+		ImGui::PopItemWidth();
 	}
 	ImGui::End();
 }
 void ShowDebugMenu(bool* panel_open)
 {
 	//ImGui::SetNextWindowSize(ImVec2(225, 180)); dont need this if use auto resize
-	if (ImGui::Begin("Debugging", panel_open, ImGuiWindowFlags_AlwaysAutoResize))
+	if (ImGui::Begin(XorStringA("Debugging"), panel_open, ImGuiWindowFlags_AlwaysAutoResize))
 	{
 		//save system variables
-		if (ImGui::Button("Save System Variables", ImVec2(200, 20)))
+		if (ImGui::Button(XorStringA("Save System Variables"), ImVec2(200, 20)))
 		{
 			uint64_t systemVariables_name = ((uint64_t)g_kuip_SystemVariables + 0x18);
 			uint64_t systemVariables_bool = ((uint64_t)g_kuip_SystemVariables + 0x08);
 			uint64_t systemVariables_FloatInt = ((uint64_t)g_kuip_SystemVariables + 0x10);
 
 			std::ofstream fout;
-			fout.open(GetDirectoryFile("SystemVariables.ini"), std::ios::trunc);
+			fout.open(GetDirectoryFile(XorStringA("SystemVariables.ini")), std::ios::trunc);
 			for (uint16_t counter = 0; counter < 600; counter++)
 			{
 				std::string& l_s_name = std::string((const char*)(*((uint64_t*)(systemVariables_name))));
@@ -3006,8 +2549,8 @@ void ShowDebugMenu(bool* panel_open)
 				else if (l_f_float_value != l_f_float_value) //check for Nan
 					l_f_float_value = 0;
 
-				fout << "Name: " << l_s_name << " Enabled: " << l_b_is_enabled << " ValueInt: " << l_i32_interger_value << " ValueFloat: " << l_f_float_value << '\n';
-				if (l_s_name == "_use_object_loadrange")
+				fout << XorStringA("Name: ") << l_s_name << XorStringA(" Enabled: ") << l_b_is_enabled << XorStringA(" ValueInt: ") << l_i32_interger_value << XorStringA(" ValueFloat: ") << l_f_float_value << '\n';
+				if (l_s_name == XorStringA("_use_object_loadrange"))
 					break;
 
 				systemVariables_name += 0x20;
@@ -3017,7 +2560,7 @@ void ShowDebugMenu(bool* panel_open)
 			fout.close();
 		}
 		//load system variables
-		if (ImGui::Button("Load System Variables", ImVec2(200, 20)))
+		if (ImGui::Button(XorStringA("Load System Variables"), ImVec2(200, 20)))
 		{
 			std::string l_s_name;
 			bool l_b_is_enabled;
@@ -3029,14 +2572,14 @@ void ShowDebugMenu(bool* panel_open)
 
 			std::ifstream fin;
 			std::string words = "";
-			fin.open(GetDirectoryFile("SystemVariables.ini"), std::ifstream::in);
+			fin.open(GetDirectoryFile(XorStringA("SystemVariables.ini")), std::ifstream::in);
 			for (uint16_t counter = 0; counter < 600; counter++)
 			{
 				fin >> words >> l_s_name >> words >> l_b_is_enabled >> words >> l_i32_interger_value >> words >> l_f_float_value;
 				*((bool*)(systemVariables_bool)) = l_b_is_enabled;
 				*((int*)(systemVariables_FloatInt)) = l_i32_interger_value;
 				*((float*)(systemVariables_FloatInt)) = l_f_float_value;
-				if (l_s_name == "_use_object_loadrange")
+				if (l_s_name == XorStringA("_use_object_loadrange"))
 				{
 					break;
 				}
@@ -3046,35 +2589,31 @@ void ShowDebugMenu(bool* panel_open)
 			fin.close();
 		}
 		//dump inventory
-		if (ImGui::Button("Dump Inventory", ImVec2(200, 20)))
+		if (ImGui::Button(XorStringA("Dump Inventory"), ImVec2(200, 20)))
 		{
-			DumpInventory(1);
+			int temp = DumpInventory(1, NULL);
 		}
 		//dump warehouse
-		if (ImGui::Button("Dump Warehouse", ImVec2(200, 20)))
+		if (ImGui::Button(XorStringA("Dump Warehouse"), ImVec2(200, 20)))
 		{
-			DumpWarehouse(1);
-		}
-		//dump marketplace
-		if (ImGui::Button("Dump MarketPlace", ImVec2(200, 20)))
-		{
-			std::thread(DumpMarketplace, 1).detach();
+			int temp = DumpWarehouse(1, NULL);
 		}
 		//check for multi-threading
-		if (ImGui::Button("Get CPU ID", ImVec2(200, 20)))
+		if (ImGui::Button(XorStringA("Get CPU ID"), ImVec2(200, 20)))
 		{
 			uint32_t cpuid_regs[BDOEnums::CPUID_ARRAY_SIZE];
 			__cpuid((int32_t*)cpuid_regs, 1);
 
-			cLog("%d", cpuid_regs[BDOEnums::CPUID_EBX] >> 24);
+			cLog(XorStringA("%d"), cpuid_regs[BDOEnums::CPUID_EBX] >> 24);
 		}
 		//unhook
-		if (ImGui::Button("UNHOOK", ImVec2(200, 20)))
+		if (ImGui::Button(XorStringA("UNHOOK"), ImVec2(200, 20)))
 		{
-			if (BDO::g_b_show_console) //prevent crash
-				BDO::g_b_show_console = false;
-			DisableThreadLibraryCalls(BDO::g_hmodule_dllModule);
-			CreateThread(0, 0, (LPTHREAD_START_ROUTINE)UnhookMe, BDO::g_hmodule_dllModule, 0, 0);
+			if (BDO::g_bShowConsole) //prevent crash
+				BDO::g_bShowConsole = false;
+
+			//Create a thread to unhook or it will unhook the game instead
+			CreateThread(0, 0, (LPTHREAD_START_ROUTINE)UnhookMe, NULL, 0, 0);
 		}
 	}
 	ImGui::End();
@@ -3105,7 +2644,7 @@ void DrawMainPanel()
 	if (l_b_show_debug_menu)
 		ShowDebugMenu(&l_b_show_debug_menu);
 	//---------------------------------------------------
-	if (BDO::g_b_show_console)
+	if (BDO::g_bShowConsole)
 	{
 		if (!AllocConsole())
 		{
@@ -3122,17 +2661,17 @@ void DrawMainPanel()
 	ImVec2 window_pos = ImVec2((corner & 1) ? ImGui::GetIO().DisplaySize.x - DISTANCE : DISTANCE, (corner & 2) ? ImGui::GetIO().DisplaySize.y - DISTANCE : DISTANCE);
 	ImVec2 window_pos_pivot = ImVec2((corner & 1) ? 1.0f : 0.0f, (corner & 2) ? 1.0f : 0.0f);
 	ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always, window_pos_pivot);
-	ImGui::SetNextWindowBgAlpha(0.5f); // Transparent background	
-	if (ImGui::Begin("CRIMSON DESERT", &l_b_show_menu, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav))
+	ImGui::SetNextWindowBgAlpha(0.75f); // Transparent background	
+	if (ImGui::Begin(XorStringA("CRIMSON DESERT"), &l_b_show_menu, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav))
 	{
-		if (ImGui::BeginMenu("CRIMSON DESERT"))
+		if (ImGui::BeginMenu(XorStringA("CRIMSON DESERT")))
 		{
-			ImGui::MenuItem("Main Menu", NULL, &l_b_show_menuWindow);
-			ImGui::MenuItem("Show FPS", NULL, &l_b_show_fps);
-			ImGui::MenuItem("Show ESP", NULL, &l_b_show_esp);
-			ImGui::MenuItem("Screenshot", NULL, &l_b_camera_screenshot);
-			ImGui::MenuItem("Debug window", NULL, &l_b_show_debug_menu);
-			ImGui::MenuItem("Log Console", NULL, &BDO::g_b_show_console);
+			ImGui::MenuItem(XorStringA("Main Menu"), NULL, &l_b_show_menuWindow);
+			ImGui::MenuItem(XorStringA("Show FPS"), NULL, &l_b_show_fps);
+			ImGui::MenuItem(XorStringA("Show ESP"), NULL, &l_b_show_esp);
+			ImGui::MenuItem(XorStringA("Screenshot"), NULL, &l_b_camera_screenshot);
+			ImGui::MenuItem(XorStringA("Debug window"), NULL, &l_b_show_debug_menu);
+			ImGui::MenuItem(XorStringA("Log Console"), NULL, &BDO::g_bShowConsole);
 			ImGui::EndMenu();
 		}
 		ImGui::End();
@@ -3146,67 +2685,78 @@ void BeginScene()
 
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
 	ImGuiStyle& style = ImGui::GetStyle();
+	ImVec4* colors = style.Colors;
+
 	style.WindowBorderSize = 0.0f; //create an overlay with no border
-	ImGui::Begin("BackBuffer", reinterpret_cast<bool*>(true), ImVec2(0, 0), 0.0f, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoInputs);
+	ImGui::Begin(XorStringA("BackBuffer"), reinterpret_cast<bool*>(true), ImVec2(0, 0), 0.0f, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoInputs);
 
 	ImGui::SetWindowPos(ImVec2(0, 0), ImGuiSetCond_Always);
 	ImGui::SetWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y), ImGuiSetCond_Always);
+
+	style.Colors[ImGuiCol_Text] = ImVec4(0.860f, 0.930f, 0.890f, 0.78f);
+	style.Colors[ImGuiCol_TextDisabled] = ImVec4(0.860f, 0.930f, 0.890f, 0.28f);
+	style.Colors[ImGuiCol_WindowBg] = ImVec4(0.13f, 0.14f, 0.17f, 1.00f);
+	style.Colors[ImGuiCol_ChildWindowBg] = ImVec4(0.200f, 0.220f, 0.270f, 0.58f);
+	style.Colors[ImGuiCol_PopupBg] = ImVec4(0.200f, 0.220f, 0.270f, 0.9f);
+	style.Colors[ImGuiCol_Border] = ImVec4(0.31f, 0.31f, 1.00f, 0.00f);
+	style.Colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+	style.Colors[ImGuiCol_FrameBg] = ImVec4(0.200f, 0.220f, 0.270f, 1.00f);
+	style.Colors[ImGuiCol_FrameBgHovered] = ImVec4(0.455f, 0.198f, 0.301f, 0.78f);
+	style.Colors[ImGuiCol_FrameBgActive] = ImVec4(0.455f, 0.198f, 0.301f, 1.00f);
+	style.Colors[ImGuiCol_TitleBg] = ImVec4(0.232f, 0.201f, 0.271f, 1.00f);
+	style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.502f, 0.075f, 0.256f, 1.00f);
+	style.Colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.200f, 0.220f, 0.270f, 0.75f);
+	style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.200f, 0.220f, 0.270f, 0.47f);
+	style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0.200f, 0.220f, 0.270f, 1.00f);
+	style.Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.09f, 0.15f, 0.16f, 1.00f);
+	style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.455f, 0.198f, 0.301f, 0.78f);
+	style.Colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.455f, 0.198f, 0.301f, 1.00f);
+	style.Colors[ImGuiCol_CheckMark] = ImVec4(0.71f, 0.22f, 0.27f, 1.00f);
+	style.Colors[ImGuiCol_SliderGrab] = ImVec4(0.47f, 0.77f, 0.83f, 0.14f);
+	style.Colors[ImGuiCol_SliderGrabActive] = ImVec4(0.71f, 0.22f, 0.27f, 1.00f);
+	style.Colors[ImGuiCol_Button] = ImVec4(0.47f, 0.77f, 0.83f, 0.14f);
+	style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.455f, 0.198f, 0.301f, 0.86f);
+	style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.455f, 0.198f, 0.301f, 1.00f);
+	style.Colors[ImGuiCol_Header] = ImVec4(0.455f, 0.198f, 0.301f, 0.76f);
+	style.Colors[ImGuiCol_HeaderHovered] = ImVec4(0.455f, 0.198f, 0.301f, 0.86f);
+	style.Colors[ImGuiCol_HeaderActive] = ImVec4(0.502f, 0.075f, 0.256f, 1.00f);
+	style.Colors[ImGuiCol_Column] = ImVec4(0.14f, 0.16f, 0.19f, 1.00f);
+	style.Colors[ImGuiCol_ColumnHovered] = ImVec4(0.455f, 0.198f, 0.301f, 0.78f);
+	style.Colors[ImGuiCol_ColumnActive] = ImVec4(0.455f, 0.198f, 0.301f, 1.00f);
+	style.Colors[ImGuiCol_ResizeGrip] = ImVec4(0.47f, 0.77f, 0.83f, 0.04f);
+	style.Colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.455f, 0.198f, 0.301f, 0.78f);
+	style.Colors[ImGuiCol_ResizeGripActive] = ImVec4(0.455f, 0.198f, 0.301f, 1.00f);
+	style.Colors[ImGuiCol_PlotLines] = ImVec4(0.860f, 0.930f, 0.890f, 0.63f);
+	style.Colors[ImGuiCol_PlotLinesHovered] = ImVec4(0.455f, 0.198f, 0.301f, 1.00f);
+	style.Colors[ImGuiCol_PlotHistogram] = ImVec4(0.860f, 0.930f, 0.890f, 0.63f);
+	style.Colors[ImGuiCol_PlotHistogramHovered] = ImVec4(0.455f, 0.198f, 0.301f, 1.00f);
+	style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(0.455f, 0.198f, 0.301f, 0.43f);
+	style.Colors[ImGuiCol_ModalWindowDarkening] = ImVec4(0.200f, 0.220f, 0.270f, 0.73f);
+
+	//style.WindowPadding = ImVec2(6, 4);
+	style.WindowRounding = 0.0f;
+	//style.FramePadding = ImVec2(5, 1);
+	//style.FrameRounding = 3.0f;
+	//style.ItemSpacing = ImVec2(7, 1);
+	//style.ItemInnerSpacing = ImVec2(1, 1);
+	style.TouchExtraPadding = ImVec2(0, 0);
+	//style.IndentSpacing = 6.0f;
+	//style.ScrollbarSize = 12.0f;
+	//style.ScrollbarRounding = 16.0f;
+	//style.GrabMinSize = 20.0f;
+	//style.GrabRounding = 2.0f;
+
+	style.WindowTitleAlign.x = 0.50f;
+
+	style.Colors[ImGuiCol_Border] = ImVec4(0.539f, 0.479f, 0.255f, 0.162f);
+	style.FrameBorderSize = 0.0f;
+	style.WindowBorderSize = 1.0f;
 }
 
 void RenderScene()
 {
-	ImGuiStyle* style = &ImGui::GetStyle();
-	ImVec4* colors = style->Colors;
-
-	colors[ImGuiCol_Text] = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
-	colors[ImGuiCol_TextDisabled] = ImVec4(0.50f, 0.50f, 0.50f, 1.00f);
-	colors[ImGuiCol_WindowBg] = ImVec4(0.06f, 0.06f, 0.06f, 0.94f);
-	colors[ImGuiCol_ChildBg] = ImVec4(1.00f, 1.00f, 1.00f, 0.00f);
-	colors[ImGuiCol_PopupBg] = ImVec4(0.08f, 0.08f, 0.08f, 0.94f);
-	colors[ImGuiCol_Border] = ImVec4(0.43f, 0.43f, 0.50f, 0.50f);
-	colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-	colors[ImGuiCol_FrameBg] = ImVec4(0.16f, 0.29f, 0.48f, 0.54f);
-	colors[ImGuiCol_FrameBgHovered] = ImVec4(0.26f, 0.59f, 0.98f, 0.40f);
-	colors[ImGuiCol_FrameBgActive] = ImVec4(0.26f, 0.59f, 0.98f, 0.67f);
-	colors[ImGuiCol_TitleBg] = ImVec4(0.04f, 0.04f, 0.04f, 1.00f);
-	colors[ImGuiCol_TitleBgActive] = ImVec4(0.16f, 0.29f, 0.48f, 1.00f);
-	colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.00f, 0.00f, 0.00f, 0.51f);
-	colors[ImGuiCol_MenuBarBg] = ImVec4(0.14f, 0.14f, 0.14f, 1.00f);
-	colors[ImGuiCol_ScrollbarBg] = ImVec4(0.02f, 0.02f, 0.02f, 0.53f);
-	colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.31f, 0.31f, 0.31f, 1.00f);
-	colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.41f, 0.41f, 0.41f, 1.00f);
-	colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.51f, 0.51f, 0.51f, 1.00f);
-	colors[ImGuiCol_CheckMark] = ImVec4(0.26f, 0.59f, 0.98f, 1.00f);
-	colors[ImGuiCol_SliderGrab] = ImVec4(0.24f, 0.52f, 0.88f, 1.00f);
-	colors[ImGuiCol_SliderGrabActive] = ImVec4(0.26f, 0.59f, 0.98f, 1.00f);
-	colors[ImGuiCol_Button] = ImVec4(0.26f, 0.59f, 0.98f, 0.40f);
-	colors[ImGuiCol_ButtonHovered] = ImVec4(0.26f, 0.59f, 0.98f, 1.00f);
-	colors[ImGuiCol_ButtonActive] = ImVec4(0.06f, 0.53f, 0.98f, 1.00f);
-	colors[ImGuiCol_Header] = ImVec4(0.40f, 0.40f, 0.90f, 0.45f);
-	colors[ImGuiCol_HeaderHovered] = ImVec4(0.45f, 0.45f, 0.90f, 0.80f);
-	colors[ImGuiCol_HeaderActive] = ImVec4(0.53f, 0.53f, 0.87f, 0.80f);
-	colors[ImGuiCol_Separator] = colors[ImGuiCol_Border];//ImVec4(0.61f, 0.61f, 0.61f, 1.00f);
-	colors[ImGuiCol_SeparatorHovered] = ImVec4(0.10f, 0.40f, 0.75f, 0.78f);
-	colors[ImGuiCol_SeparatorActive] = ImVec4(0.10f, 0.40f, 0.75f, 1.00f);
-	colors[ImGuiCol_ResizeGrip] = ImVec4(0.26f, 0.59f, 0.98f, 0.25f);
-	colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.26f, 0.59f, 0.98f, 0.67f);
-	colors[ImGuiCol_ResizeGripActive] = ImVec4(0.26f, 0.59f, 0.98f, 0.95f);
-	colors[ImGuiCol_CloseButton] = ImVec4(0.41f, 0.41f, 0.41f, 0.50f);
-	colors[ImGuiCol_CloseButtonHovered] = ImVec4(0.98f, 0.39f, 0.36f, 1.00f);
-	colors[ImGuiCol_CloseButtonActive] = ImVec4(0.98f, 0.39f, 0.36f, 1.00f);
-	colors[ImGuiCol_PlotLines] = ImVec4(0.61f, 0.61f, 0.61f, 1.00f);
-	colors[ImGuiCol_PlotLinesHovered] = ImVec4(1.00f, 0.43f, 0.35f, 1.00f);
-	colors[ImGuiCol_PlotHistogram] = ImVec4(0.90f, 0.70f, 0.00f, 1.00f);
-	colors[ImGuiCol_PlotHistogramHovered] = ImVec4(1.00f, 0.60f, 0.00f, 1.00f);
-	colors[ImGuiCol_TextSelectedBg] = ImVec4(0.26f, 0.59f, 0.98f, 0.35f);
-	colors[ImGuiCol_ModalWindowDarkening] = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
-	colors[ImGuiCol_DragDropTarget] = ImVec4(1.00f, 1.00f, 0.00f, 0.90f);
-	colors[ImGuiCol_NavHighlight] = ImVec4(0.26f, 0.59f, 0.98f, 1.00f);
-	colors[ImGuiCol_NavWindowingHighlight] = ImVec4(1.00f, 1.00f, 1.00f, 0.70f);
-
 	DrawMainPanel();
 
-	MarketSystem();
 	BaseFunctions();
 }
 

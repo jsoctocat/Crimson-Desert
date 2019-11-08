@@ -1,3 +1,0 @@
-﻿E:\Microsoft Visual Studio\2017\Community\Common7\IDE\VC\VCTargets\Microsoft.CppBuild.targets(402,5): warning MSB8038: Spectre mitigation is enabled but Spectre mitigated libraries are not found.  Verify that the Visual Studio Workload includes the Spectre mitigated libraries.  See https://aka.ms/Ofhn4c for more information.
-  dllmain.cpp
-  Crimson_Desert.vcxproj -> C:\Users\Dmoxi\Desktop\Crimson_Desert\x64\Debug\Crimson Desert.dll
