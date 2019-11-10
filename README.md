@@ -15,9 +15,11 @@ This repo is now made public for educational purposes, there are additional verf
 
 * Pretty much everything that can be modified/automated cliently, short of packet(s) sniff/editing.
 
-* automate your grind include beating monsters; lifeskill such as gathering, processing, fishing, etc.
+* Convert view matrix (a 4 by 4 matrix represents in game camera) to 2D coordinace which can then be drawn on screen for ESP(Extra Sensory Perception).
 
-* modify the movement/attack speed of self-character(s) and mount(s), teleportation, etc.
+* Automate your grind include beating monsters; lifeskill such as gathering, processing, fishing, etc.
+
+* Modify the movement/attack speed of self-character(s) and mount(s), teleportation, etc.
 
 * Custom Lua script injection, modify existing Lua script.
 
